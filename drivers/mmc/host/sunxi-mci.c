@@ -1363,6 +1363,9 @@ static void sw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		    smc_host->mod_clk = 24000000;
 		if (smc_host->card_clk > smc_host->mod_clk)
 			smc_host->card_clk = smc_host->mod_clk;
+#elif defined CONFIG_AW_ASIC_PLATFORM
+		if (smc_host->mod_clk > 45000000)
+			smc_host->mod_clk = 45000000;
 #endif
 		sw_mci_set_clk(smc_host, smc_host->card_clk);
 		last_clock[id] = ios->clock;
@@ -2280,15 +2283,20 @@ static struct sunxi_mmc_platform_data sw_mci_pdata[4] = {
 	[2] = {
 		.ocr_avail = MMC_VDD_28_29 | MMC_VDD_29_30 | MMC_VDD_30_31 | MMC_VDD_31_32
 				| MMC_VDD_32_33 | MMC_VDD_33_34 | MMC_VDD_165_195,
-		.caps = MMC_CAP_4_BIT_DATA | MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED
-			| MMC_CAP_SDIO_IRQ | MMC_CAP_NONREMOVABLE
+		.caps = MMC_CAP_4_BIT_DATA | MMC_CAP_NONREMOVABLE
+			| MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED
 			| MMC_CAP_UHS_SDR12 | MMC_CAP_UHS_SDR25 | MMC_CAP_UHS_SDR50
 			| MMC_CAP_UHS_DDR50
+			| MMC_CAP_1_8V_DDR
+			#ifndef CONFIG_AW_FPGA_PLATFORM
+			| MMC_CAP_8_BIT_DATA
+			#endif
+			| MMC_CAP_SDIO_IRQ
 			| MMC_CAP_SET_XPC_330 | MMC_CAP_DRIVER_TYPE_A,
 		.caps2 = MMC_CAP2_HS200_1_8V_SDR,
 		.f_min = 400000,
-		.f_max = 50000000,
-		.f_ddr_max = 47000000,
+		.f_max = 120000000,
+		.f_ddr_max = 50000000,
 		.dma_tl= 0x20070008,
 		.regulator=NULL,
 	},
