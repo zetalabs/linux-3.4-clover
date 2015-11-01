@@ -462,7 +462,7 @@ static int tvd_close(struct file *file)
 	return ret;
 }
 
-static __u8 get_signal_status()
+static __u8 get_signal_status(void)
 {
 	__u8 val=0;
 	struct tvd_dev *dev;

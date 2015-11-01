@@ -247,7 +247,7 @@ static struct local_timer_ops arch_timer_ops __cpuinitdata = {
 
 static struct clock_event_device arch_timer_global_evt;
 
-int arch_timer_common_register(void)
+int __cpuinit arch_timer_common_register(void)
 {
 	int err;
 

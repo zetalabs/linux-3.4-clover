@@ -1,3 +1,5 @@
+#include <linux/slab.h>
+#include <linux/gfp.h>
 #include <linux/string.h>
 #include <asm/unistd.h>
 
@@ -31,11 +33,15 @@ Note:
 *************************************************************/
 int ini_get_key(char *filedata, char * section, char * key, char * value)
 {
-	char buf1[MAX_CFG_BUF + 1], buf2[MAX_CFG_BUF + 1];
+	char buf1[MAX_CFG_BUF + 1];
 	char *key_ptr, *val_ptr;
 	int  n, ret;
 	int dataoff = 0;
 	int i = 0;
+	char *buf2 = kmalloc(MAX_CFG_BUF + 1, GFP_ATOMIC);
+	if (buf2 == NULL) {
+		return CFG_ERR_READ_FILE;
+	}
 	
 	*value='\0';
 	
@@ -118,6 +124,7 @@ int ini_get_key(char *filedata, char * section, char * key, char * value)
 	ret = CFG_OK; 
 r_cfg_end: 
 	//if(fp != NULL) fclose(fp); 
+	if(buf2 != NULL) kfree(buf2); 
 	return ret; 
 } 
 /*************************************************************

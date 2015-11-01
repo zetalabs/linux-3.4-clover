@@ -214,7 +214,7 @@ int cpu_hotplug_get_lock(void)
 /*
  * cpu hotplug, just plug in one cpu
  */
-static void cpu_up_work(struct work_struct *work)
+static void __cpuinit cpu_up_work(struct work_struct *work)
 {
     int cpu, nr_up, online, hotplug_lock;
     struct cpu_hotplug_info_s *hotplug_info =

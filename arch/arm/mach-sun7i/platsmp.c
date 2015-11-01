@@ -43,7 +43,7 @@ static void __iomem *scu_base_addr(void)
 }
 
 
-void enable_aw_cpu(int cpu)
+void __cpuinit enable_aw_cpu(int cpu)
 {
     long paddr;
     u32 pwr_reg;

@@ -137,5 +137,5 @@ struct	codec_mixer_control{
 	unsigned int value;
 };
 
-extern int __init snd_chip_codec_mixer_new(struct snd_card *card);
+extern int snd_chip_codec_mixer_new(struct snd_card *card);
 #endif

@@ -144,7 +144,7 @@ static DECLARE_WORK(ft5x_init_work, ft5x_init_events);
 static int ctp_detect(struct i2c_client *client, struct i2c_board_info *info)
 {	
 	struct i2c_adapter *adapter = client->adapter;
-	int ret = 0, i = 0;			
+	int ret = 0;
 	if (!i2c_check_functionality(adapter, I2C_FUNC_SMBUS_BYTE_DATA))
 		return -ENODEV;
 	

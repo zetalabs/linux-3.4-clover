@@ -212,10 +212,10 @@ static int __init sndhdmi_codec_init(void)
 	script_item_value_type_e  type;
 	type = script_get_item("hdmi_para", "hdcp_enable", &val);
 	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
-        printk("[hdcp] type err!\n");
-    }
+		printk("[hdcp] type err!\n");
+	}
 
-	hdmi_used =!val.val;
+	hdmi_used = !val.val;
 	if (hdmi_used){
 		if ((err = platform_device_register(&sndhdmi_codec_device)) < 0)
 			return err;
@@ -225,6 +225,7 @@ static int __init sndhdmi_codec_init(void)
 
 		return 0;
 	}
+	return 0;
 }
 module_init(sndhdmi_codec_init);
 

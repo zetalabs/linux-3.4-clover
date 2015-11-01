@@ -4,6 +4,9 @@
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 #include <mach/dram-freq.h>
+#else
+#define DRAMFREQ_NOTIFY_PREPARE         0x00000001 /* device added */
+#define DRAMFREQ_NOTIFY_DONE            0x00000002 /* device removed */
 #endif
 
 fb_info_t g_fbi;
@@ -495,7 +498,7 @@ ssize_t disp_write(struct file *file, const char __user *buf, size_t count, loff
         return 0;
 }
 
-static int __init disp_probe(struct platform_device *pdev)//called when platform_driver_register
+static int disp_probe(struct platform_device *pdev)//called when platform_driver_register
 {
 	fb_info_t * info = NULL;
 
@@ -828,7 +831,9 @@ void disp_shutdown(struct platform_device *pdev)
 
 static int disp_dram_notify(struct notifier_block *nb, unsigned long event, void *cmd)
 {
+#ifndef CONFIG_HAS_EARLYSUSPEND
     int i = 0;
+#endif
     //printk("disp get a dram notify:%d\n",event);
     if (event == DRAMFREQ_NOTIFY_PREPARE){
 #ifndef CONFIG_HAS_EARLYSUSPEND
@@ -2000,6 +2005,7 @@ long disp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
                 case DISP_CMD_MEM_GETADR:
                 	ret = g_disp_mm[ubuffer[0]].mem_start;
                 	break;
+
 #ifdef CONFIG_PM
                 case DISP_CMD_SUSPEND:
                         {
@@ -2016,18 +2022,42 @@ long disp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
                 case DISP_CMD_PRINT_REG:
                         ret = BSP_disp_print_reg(1, ubuffer[0]);
                         break;
-    case DISP_CMD_HWC_COMMIT:
-       {
-          setup_dispc_data_t para;
 
-	    		if(copy_from_user(&para, (void __user *)ubuffer[1],sizeof(setup_dispc_data_t)))
-	    		{
-	    		    __wrn("copy_from_user fail\n");
-	    			return  -EFAULT;
-	    		}
-	       	ret = hwc_commit(ubuffer[0], &para);
-	        break;
-        }
+#if 0
+                case DISP_CMD_HWC_COMMIT:
+                        {
+                                setup_dispc_data_t para;
+
+                                if(copy_from_user(&para, (void __user *)ubuffer[1],sizeof(setup_dispc_data_t)))
+                                {
+                                        __wrn("copy_from_user fail\n");
+                                        return  -EFAULT;
+                                }
+                                ret = hwc_commit(ubuffer[0], &para);
+                                break;
+                       }
+#else
+                case DISP_CMD_HWC_COMMIT:
+                        {
+                                setup_dispc_data_t *para = kmalloc(sizeof(setup_dispc_data_t), GFP_KERNEL | __GFP_ZERO);
+                                if (para == NULL)
+                                {
+                                        __wrn("kmalloc fail\n");
+                                        return  -EFAULT;
+                                }
+
+                                if(copy_from_user(para, (void __user *)ubuffer[1],sizeof(setup_dispc_data_t)))
+                                {
+                                        kfree(para);
+                                        __wrn("copy_from_user fail\n");
+                                        return  -EFAULT;
+                                }
+                                ret = hwc_commit(ubuffer[0], para);
+                                kfree(para);
+                                break;
+                       }
+#endif
+
                 default:
                     break;
                 }

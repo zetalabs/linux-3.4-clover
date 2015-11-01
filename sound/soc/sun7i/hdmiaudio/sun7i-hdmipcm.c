@@ -196,6 +196,8 @@ static int sun7i_pcm_prepare(struct snd_pcm_substream *substream)
 	struct sun7i_runtime_data *prtd = substream->runtime->private_data;
 	dma_config_t codec_dma_conf;
 	int ret = 0;
+	u32 tmp;
+
 	//printk("pcm:::%s,line:%d\n", __func__, __LINE__);
 	if (!prtd->params)
 		return 0;
@@ -215,22 +217,20 @@ static int sun7i_pcm_prepare(struct snd_pcm_substream *substream)
 		if(0 != sw_dma_config(prtd->dma_hdl, &codec_dma_conf)) {
 			printk("err:%s,line:%d\n", __func__, __LINE__);
 			return -EINVAL;
-			return -EINVAL;
 		}
 		/*	dma_para_t para;
 			para.src_blk_sz 	= 0;
 			para.src_wait_cyc 	= 0;
 			para.dst_blk_sz 	= 0;
 			para.dst_wait_cyc 	= 0;*/
-			u32 tmp = 0x1F071F07;
-			if(0 != sw_dma_ctl(prtd->dma_hdl, DMA_OP_SET_PARA_REG, &tmp)) {
-				
-				return -EINVAL;
-			}
-			
-		}else{
-		return -EINVAL;
+		tmp = 0x1F071F07;
+		if(0 != sw_dma_ctl(prtd->dma_hdl, DMA_OP_SET_PARA_REG, &tmp)) {
+			return -EINVAL;
 		}
+
+	}else{
+		return -EINVAL;
+	}
 		
 	/* flush the DMA channel */
 	/*sw_dma_ctrl(prtd->params->channel, SW_DMAOP_FLUSH);*/

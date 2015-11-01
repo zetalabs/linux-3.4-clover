@@ -155,8 +155,8 @@ static int __init sun7i_hdmiaudio_init(void)
 
 	type = script_get_item("hdmi_para", "hdcp_enable", &val);
 	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
-        	printk("[I2S] type err!\n");
-    }
+		printk("[I2S] type err!\n");
+	}
 
 	hdmi_used = !val.val;
 	if(hdmi_used){
@@ -169,6 +169,7 @@ static int __init sun7i_hdmiaudio_init(void)
 			
 		return 0;
 	}
+	return 0;
 }
 module_init(sun7i_hdmiaudio_init);
 

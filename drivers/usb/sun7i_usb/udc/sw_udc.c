@@ -3784,7 +3784,7 @@ static int sw_udc_remove_device_only(struct platform_device *pdev)
 *
 *******************************************************************************
 */
-static int __init sw_udc_probe(struct platform_device *pdev)
+static int sw_udc_probe(struct platform_device *pdev)
 {
 #ifdef  CONFIG_USB_SW_SUN7I_USB0_OTG
 	struct sw_udc_mach_info *udc_cfg = pdev->dev.platform_data;

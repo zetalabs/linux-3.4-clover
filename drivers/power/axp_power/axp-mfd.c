@@ -247,29 +247,30 @@ static void axp_power_off(void)
 		val &= 0xbf;
 		axp_write(&axp->dev, POWER20_COULOMB_CTL, val);
 	}
-    //led auto
-    axp_clr_bits(&axp->dev,0x32,0x38);
+	//led auto
+	axp_clr_bits(&axp->dev,0x32,0x38);
 	axp_clr_bits(&axp->dev,0xb9,0x80);
 
-    printk("[axp] send power-off command!\n");
-    mdelay(20);
-    if(power_start != 1){
-	    axp_write(&axp->dev, POWER20_INTSTS3, 0x03);
-        axp_read(&axp->dev, POWER20_STATUS, &val);
+	printk("[axp] send power-off command!\n");
+	mdelay(20);
+	if(power_start != 1){
+		axp_write(&axp->dev, POWER20_INTSTS3, 0x03);
+		axp_read(&axp->dev, POWER20_STATUS, &val);
 		if(val & 0xF0){
-	    	axp_read(&axp->dev, POWER20_MODE_CHGSTATUS, &val);
-	    	if(val & 0x20){
-            	printk("[axp] set flag!\n");
-	        	axp_write(&axp->dev, POWER20_DATA_BUFFERC, 0x0f);
-            	mdelay(20);
-		    	printk("[axp] reboot!\n");
-		    	arch_reset(0,NULL);
-		    	printk("[axp] warning!!! arch can't ,reboot, maybe some error happend!\n");
-	    	}
+			axp_read(&axp->dev, POWER20_MODE_CHGSTATUS, &val);
+			if(val & 0x20){
+				printk("[axp] set flag!\n");
+				axp_write(&axp->dev, POWER20_DATA_BUFFERC, 0x0f);
+				mdelay(20);
+				printk("[axp] reboot!\n");
+				arch_reset(0,NULL);
+				printk("[axp] warning!!! arch can't ,reboot, maybe some error happend!\n");
+			}
 		}
 	}
 	
 //add by xgc	
+do {
 	int sys_power_ctrl_used;
 	script_item_u	val1;
 	script_item_value_type_e  type;
@@ -287,7 +288,9 @@ static void axp_power_off(void)
 		printk(" sys_power_ctrl_used is not used in config  !\n");
 	}
 	else
-	{	
+	{
+		int relvalue;
+
 		type= script_get_item("lcd0_para", "sys_power_ctrl", &val1);
 		
 		if(SCIRPT_ITEM_VALUE_TYPE_PIO != type) 
@@ -306,29 +309,26 @@ static void axp_power_off(void)
 			printk("sys_power_ctrl sw_gpio_setall_range  err!");
 		}	
 		
-		int relvalue;
 		relvalue = __gpio_get_value(val1.gpio.gpio);
 		printk(" xgc: pull down sys_power_ctrl");
 		__gpio_set_value(val1.gpio.gpio, 0);
 		relvalue = __gpio_get_value(val1.gpio.gpio);
 	}
+} while(0);
 //add by xgc end
 	
-    axp_write(&axp->dev, POWER20_DATA_BUFFERC, 0x00);
-    //axp_write(&axp->dev, 0xf4, 0x06);
-    //axp_write(&axp->dev, 0xf2, 0x04);
-    //axp_write(&axp->dev, 0xff, 0x01);
-    //axp_write(&axp->dev, 0x04, 0x01);
-    //axp_clr_bits(&axp->dev, 0x03, 0xc0);
-    //axp_write(&axp->dev, 0xff, 0x00);
-    //mdelay(20);
+	axp_write(&axp->dev, POWER20_DATA_BUFFERC, 0x00);
+	//axp_write(&axp->dev, 0xf4, 0x06);
+	//axp_write(&axp->dev, 0xf2, 0x04);
+	//axp_write(&axp->dev, 0xff, 0x01);
+	//axp_write(&axp->dev, 0x04, 0x01);
+	//axp_clr_bits(&axp->dev, 0x03, 0xc0);
+	//axp_write(&axp->dev, 0xff, 0x00);
+	//mdelay(20);
 	axp_set_bits(&axp->dev, POWER20_OFF_CTL, 0x80);
-    mdelay(20);
-    printk("[axp] warning!!! axp can't power-off, maybe some error happend!\n");
-
+	mdelay(20);
+	printk("[axp] warning!!! axp can't power-off, maybe some error happend!\n");
 #endif
-
-
 }
 
 static int __devinit axp_mfd_probe(struct i2c_client *client,

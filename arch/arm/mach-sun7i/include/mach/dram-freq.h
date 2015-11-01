@@ -48,11 +48,11 @@ extern int dramfreq_register_notifier(struct notifier_block *nb);
 
 extern int dramfreq_unregister_notifier(struct notifier_block *nb);
 #else
-static inline dramfreq_register_notifier(struct notifier_block *nb)
+static int inline dramfreq_register_notifier(struct notifier_block *nb)
 {
     return 0;
 }
-static inline dramfreq_unregister_notifier(struct notifier_block *nb)
+static int inline dramfreq_unregister_notifier(struct notifier_block *nb)
 {
     return 0;
 }

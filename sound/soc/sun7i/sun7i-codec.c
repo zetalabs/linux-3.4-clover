@@ -298,31 +298,32 @@ static  int codec_init(void)
 
 static int codec_play_open(struct snd_pcm_substream *substream)
 {
+	int max_add =0x0;
+
 	//pa mute
 	codec_wr_control(SUN7I_DAC_ACTL, 0x1, PA_MUTE, 0x0);
-	codec_wr_control(SUN7I_DAC_DPC ,  0x1, DAC_EN, 0x1);
-	codec_wr_control(SUN7I_DAC_FIFOC ,0x1, DAC_FIFO_FLUSH, 0x1);
+	codec_wr_control(SUN7I_DAC_DPC, 0x1, DAC_EN, 0x1);
+	codec_wr_control(SUN7I_DAC_FIFOC, 0x1, DAC_FIFO_FLUSH, 0x1);
 	//set TX FIFO send drq level
-	codec_wr_control(SUN7I_DAC_FIFOC ,0x4, TX_TRI_LEVEL, 0xf);
+	codec_wr_control(SUN7I_DAC_FIFOC, 0x4, TX_TRI_LEVEL, 0xf);
 	if (substream->runtime->rate > 32000) {
 		codec_wr_control(SUN7I_DAC_FIFOC ,  0x1,28, 0x0);
 	} else {
 		codec_wr_control(SUN7I_DAC_FIFOC ,  0x1,28, 0x1);
 	}
 	//set TX FIFO MODE
-	codec_wr_control(SUN7I_DAC_FIFOC ,0x1, TX_FIFO_MODE, 0x1);
+	codec_wr_control(SUN7I_DAC_FIFOC, 0x1, TX_FIFO_MODE, 0x1);
 	//send last sample when dac fifo under run
-	codec_wr_control(SUN7I_DAC_FIFOC ,0x1, LAST_SE, 0x0);
+	codec_wr_control(SUN7I_DAC_FIFOC, 0x1, LAST_SE, 0x0);
 	//enable dac analog
 	codec_wr_control(SUN7I_DAC_ACTL, 0x1, 	DACAEN_L, 0x1);
 	codec_wr_control(SUN7I_DAC_ACTL, 0x1, 	DACAEN_R, 0x1);
 	//enable dac to pa
 	codec_wr_control(SUN7I_DAC_ACTL, 0x1, 	DACPAS, 0x1);
-	int max_add =0x0;     
-	for(max_add=0X0;max_add<=0x3b;max_add++){
+	for(max_add=0X0; max_add<=0x3b; max_add++) {
 		codec_wr_control(SUN7I_DAC_ACTL, 0x3f, VOLUME, max_add);
-		usleep_range(3000,4000);
-		}
+		usleep_range(3000, 4000);
+	}
 	return 0;
 }
 
@@ -727,7 +728,7 @@ static const struct snd_kcontrol_new codec_snd_controls[] = {
 	SOC_SINGLE_BOOL_EXT("Audio phone capture", 0, codec_get_phone_capture, codec_set_phone_capture), 
 };
 
-int __init snd_chip_codec_mixer_new(struct snd_card *card)
+int snd_chip_codec_mixer_new(struct snd_card *card)
 {
   	static struct snd_device_ops ops = {
   		.dev_free	=	codec_dev_free,
@@ -903,7 +904,7 @@ static int sun7i_codec_pcm_hw_params(struct snd_pcm_substream *substream, struct
 				return -EINVAL;
 			}
 			substream->dma_buffer.addr = 0x00020000;
-			substream->dma_buffer.area = 0xf0020000;
+			substream->dma_buffer.area = (unsigned char *)0xf0020000;
 			snd_pcm_set_runtime_buffer(substream, &substream->dma_buffer);
 			play_runtime->dma_bytes = play_totbytes;
    			spin_lock_irq(&play_prtd->lock);
@@ -944,7 +945,7 @@ static int sun7i_codec_pcm_hw_params(struct snd_pcm_substream *substream, struct
 				return -EINVAL;
 			}
 			substream->dma_buffer.addr = 0x00028000;
-			substream->dma_buffer.area = 0xf0028000;
+			substream->dma_buffer.area = (unsigned char *)0xf0028000;
 			snd_pcm_set_runtime_buffer(substream, &substream->dma_buffer);
 			capture_runtime->dma_bytes = capture_totbytes;
 			spin_lock_irq(&capture_prtd->lock);
@@ -1511,7 +1512,7 @@ static struct snd_pcm_ops sun7i_pcm_capture_ops = {
 	.pointer		= snd_sun7i_codec_pointer,
 };
 
-static int __init snd_card_sun7i_codec_pcm(struct sun7i_codec *sun7i_codec, int device)
+static int snd_card_sun7i_codec_pcm(struct sun7i_codec *sun7i_codec, int device)
 {
 	struct snd_pcm *pcm;
 	int err;
@@ -1568,14 +1569,16 @@ static void codec_resume_events(struct work_struct *work)
 	printk("====codec_resume_events turn on===\n");
 }
 
-static int __init sun7i_codec_probe(struct platform_device *pdev)
+static int sun7i_codec_probe(struct platform_device *pdev)
 {
 	int err;
 	int ret;
 	struct snd_card *card;
 	struct sun7i_codec *chip;
 	struct codec_board_info  *db;    
-    printk("enter sun7i Audio codec!!!\n"); 
+	static script_item_u   val;
+
+	printk("enter sun7i Audio codec!!!\n"); 
 	/* register the soundcard */
 	ret = snd_card_create(SNDRV_DEFAULT_IDX1, SNDRV_DEFAULT_STR1, THIS_MODULE, sizeof(struct sun7i_codec),
 			      &card);
@@ -1601,8 +1604,8 @@ static int __init sun7i_codec_probe(struct platform_device *pdev)
 	if ((err = snd_card_register(card)) == 0) {
 		printk( KERN_INFO "sun7i audio support initialized\n" );
 		platform_set_drvdata(pdev, card);
-	}else{
-      return err;
+	} else {
+		return err;
 	}
 
 	db = kzalloc(sizeof(*db), GFP_KERNEL);
@@ -1622,7 +1625,7 @@ static int __init sun7i_codec_probe(struct platform_device *pdev)
 	if (!codec_pll2clk || IS_ERR(codec_pll2clk)) {
 		printk("try to get CLK_SYS_PLL2 failed!\n");
 	}
-	clk_enable(codec_pll2clk);	 
+	clk_enable(codec_pll2clk);
 	/* codec_moduleclk */
 	codec_moduleclk = clk_get(NULL,CLK_MOD_ADDA);
 	if (!codec_moduleclk || IS_ERR(codec_moduleclk)) {
@@ -1679,14 +1682,13 @@ static int __init sun7i_codec_probe(struct platform_device *pdev)
 	if (0 != sw_gpio_setall_range(&item.gpio, 1)) {
 		printk("sw_gpio_setall_range failed\n");
 	}
-	static script_item_u   val;
 	type = script_get_item("audio_para", "hp_mute_used", &val);
 	if(SCIRPT_ITEM_VALUE_TYPE_INT != type){
 		printk("type err!");
 	}
 	pr_info("value is %d\n", val.val);
-    hp_mute_used=val.val;
-	if(hp_mute_used){
+	hp_mute_used=val.val;
+	if(hp_mute_used) {
 		type = script_get_item("audio_para", "hp_mute", &item_hp);
 		if (SCIRPT_ITEM_VALUE_TYPE_PIO != type) {
 			printk("script_get_item return type err\n");
@@ -1699,7 +1701,7 @@ static int __init sun7i_codec_probe(struct platform_device *pdev)
 		if (0 != sw_gpio_setall_range(&item_hp.gpio, 1)) {
 			printk("sw_gpio_setall_range failed\n");
 		}
-		}
+	}
 	codec_init();
 	resume_work_queue = create_singlethread_workqueue("codec_resume");
 	if (resume_work_queue == NULL) {
@@ -1712,7 +1714,7 @@ static int __init sun7i_codec_probe(struct platform_device *pdev)
 	return 0;
 	err_resume_work_queue:
 	out:
-	 dev_err(db->dev, "not found (%d).\n", ret);
+	dev_err(db->dev, "not found (%d).\n", ret);
 	
 	nodev:
 	snd_card_free(card);
@@ -1838,7 +1840,7 @@ static struct platform_device sun7i_device_codec = {
 static struct platform_driver sun7i_codec_driver = {
 	.probe		= sun7i_codec_probe,
 	.remove		= sun7i_codec_remove,
-	.shutdown   = sun7i_codec_shutdown,
+	.shutdown	= sun7i_codec_shutdown,
 #ifdef CONFIG_PM
 	.suspend	= snd_sun7i_codec_suspend,
 	.resume		= snd_sun7i_codec_resume,
@@ -1860,8 +1862,8 @@ static int __init sun7i_codec_init(void)
 		printk("type err!");
 	}
 	pr_info("value is %d\n", val.val);
-    audio_used=val.val;
-   if (audio_used) {
+	audio_used=val.val;
+	if (audio_used) {
 		if((platform_device_register(&sun7i_device_codec))<0)
 			return err;
 

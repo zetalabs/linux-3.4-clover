@@ -105,7 +105,7 @@ static DEVICE_ATTR(mali_use, 0444, mali_use_show, NULL);
 static ssize_t mali_clk_show(struct device *dev,
 		struct device_attribute *attr, char *buf){
 
-    return sprintf(buf, "%d\n", clk_get_rate(h_gpu_pll));
+    return sprintf(buf, "%lu\n", clk_get_rate(h_gpu_pll));
 }
 static DEVICE_ATTR(mali_clk, 0444, mali_clk_show, NULL);
 

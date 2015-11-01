@@ -17,7 +17,7 @@ extern int sw_usb_enable_hcd(__u32 usbc_no);
 
 //static char * axp_name = NULL;
 static int gpio_wifi_power = 0;
-static bool axp_power_on = false;
+//static bool axp_power_on = false;
 static int rtl8723au_wifi_power = 0;
 static int rtl8723au_bt_power = 0;
 static int usbc_id = 1;

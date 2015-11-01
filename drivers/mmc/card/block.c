@@ -1405,8 +1405,29 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *rqc)
 	return 0;
 }
 
+#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
 static int
-mmc_blk_set_blksize(struct mmc_blk_data *md, struct mmc_card *card);
+mmc_blk_set_blksize(struct mmc_blk_data *md, struct mmc_card *card)
+{
+	struct mmc_command cmd;
+	int err;
+
+	mmc_claim_host(card->host);
+	cmd.opcode = MMC_SET_BLOCKLEN;
+	cmd.arg = 1 << card->csd.read_blkbits;
+	cmd.flags = MMC_RSP_R1;
+	err = mmc_wait_for_cmd(card->host, &cmd, 5);
+	mmc_release_host(card->host);
+
+	if (err) {
+		printk(KERN_ERR "%s: unable to set block size to %d: %d\n",
+		md->disk->disk_name, cmd.arg, err);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+#endif
 
 static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 {

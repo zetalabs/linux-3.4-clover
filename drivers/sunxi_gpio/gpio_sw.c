@@ -373,8 +373,8 @@ static int __init gpio_sw_init(void)
         gpio_sw_dev[i].dev.release		= gpio_sw_release;
 
         GPIO_SW_DEBUG("pdatesw[%d].gpio_name = %s\n",i,pdatesw[i].name);
-        GPIO_SW_DEBUG("pdatesw[%d] 1addr = %x \n",i,&pdatesw[i]);
-        GPIO_SW_DEBUG("gpio_sw_dev[%d] addr = %x \n",i,&gpio_sw_dev[i]);
+        GPIO_SW_DEBUG("pdatesw[%d] 1addr = %x \n",i,(unsigned int)&pdatesw[i]);
+        GPIO_SW_DEBUG("gpio_sw_dev[%d] addr = %x \n",i,(unsigned int)&gpio_sw_dev[i]);
         platform_device_register(&gpio_sw_dev[i]);
     }
 
@@ -386,17 +386,18 @@ static int __init gpio_sw_init(void)
             return ret;
         }
     }
-    GPIO_SW_DEBUG("gpio_sw_driver addr = %x \n",&gpio_sw_driver);
+    GPIO_SW_DEBUG("gpio_sw_driver addr = %x \n",(unsigned int)&gpio_sw_driver);
 
     return 0;
 }
 
 static void __exit gpio_sw_exit(void)
 {
-	int i, gpio_used,ret;
+    int i, gpio_used;
     int gpio_cnt;
     script_item_u val;
     script_item_value_type_e  type;
+    script_item_u *list = NULL;
 
     type = script_get_item("3g_gpio_para", "gpio_used", &val);
     if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
@@ -414,14 +415,13 @@ static void __exit gpio_sw_exit(void)
         free_irq(GPIO_IRQ,NULL);
     }
 
-    script_item_u *list = NULL;
     gpio_cnt = script_get_pio_list("3g_gpio_para", &list);
     for(i = 0; i < gpio_cnt; i++){
         platform_device_unregister(&gpio_sw_dev[i]);
     }
 
     GPIO_SW_DEBUG("platform_device_unregister finish !  \n");
-    GPIO_SW_DEBUG("gpio_sw_driver addr = %x \n",&gpio_sw_driver);
+    GPIO_SW_DEBUG("gpio_sw_driver addr = %x \n",(unsigned int)&gpio_sw_driver);
 	platform_driver_unregister(&gpio_sw_driver);
 
 EXIT_END:

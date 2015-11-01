@@ -310,7 +310,7 @@ __s32 fb_draw_gray_pictures(__u32 base, __u32 width, __u32 height, struct fb_var
         return 0;
 }
 
-static int __init Fb_map_video_memory(struct fb_info *info)
+static int Fb_map_video_memory(struct fb_info *info)
 {
 #ifndef FB_RESERVED_MEM
 	unsigned map_size = PAGE_ALIGN(info->fix.smem_len);
@@ -333,10 +333,10 @@ static int __init Fb_map_video_memory(struct fb_info *info)
 	}
 #else        
 
-    info->screen_base = (char __iomem *)disp_malloc(info->fix.smem_len, &info->fix.smem_start);
+    info->screen_base = (char __iomem *)disp_malloc(info->fix.smem_len, (__u32 *)&info->fix.smem_start);
     if(info->screen_base)
     {
-        __inf("Fb_map_video_memory, pa=0x%x size:0x%x\n",info->fix.smem_start, info->fix.smem_len);
+        __inf("Fb_map_video_memory, pa=0x%lx size:0x%x\n",info->fix.smem_start, info->fix.smem_len);
         memset(info->screen_base,0,info->fix.smem_len);
         global_fb_addr.fb_paddr=info->fix.smem_start;
         global_fb_addr.fb_size=info->fix.smem_len;
@@ -1256,7 +1256,7 @@ static int dispc_update_regs(setup_dispc_data_t *psDispcData)
 
 static void hwc_commit_work(struct work_struct *work)
 {
-    int count = 0;
+    //int count = 0;
     dispc_data_list_t *data, *next;
     struct list_head saved_list;
 
@@ -1419,6 +1419,7 @@ static struct fb_ops dispfb_ops =
 	.fb_cursor      = Fb_cursor,
 };
 
+#if 0
 /* Greatest common divisor of x and y */
 static unsigned long GCD(unsigned long x, unsigned long y)
 {
@@ -1437,6 +1438,7 @@ static unsigned long LCM(unsigned long x, unsigned long y)
     unsigned long gcd = GCD(x, y);
     return (gcd == 0) ? 0 : ((x / gcd) * y);
 }
+#endif
  
 /* Round x up to a multiple of y */
 static inline unsigned long RoundUpToMultiple(unsigned long x, unsigned long y)
@@ -1455,7 +1457,8 @@ __s32 Display_Fb_Request(__u32 fb_id, __disp_fb_create_para_t *fb_para)
 	__disp_layer_info_t layer_para;
 	__u32 sel;
 	__u32 xres, yres;
-    unsigned long ulLCM;
+	//unsigned long ulLCM;
+	int BPP;
 
 	__inf("Display_Fb_Request,fb_id:%d\n", fb_id);
 
@@ -1476,7 +1479,7 @@ __s32 Display_Fb_Request(__u32 fb_id, __disp_fb_create_para_t *fb_para)
         xres = fb_para->width;
         yres = fb_para->height;
     }
-    int BPP=64/(info->var.bits_per_pixel >> 3);
+	BPP=64/(info->var.bits_per_pixel >> 3);
 	info->var.xoffset       = 0;
 	info->var.yoffset       = 0;
 	info->var.xres          = xres;
@@ -1669,7 +1672,7 @@ __s32 Display_set_fb_timming(__u32 sel)
 
 __s32 Fb_Init(__u32 from)
 {    
-        __disp_fb_create_para_t fb_para, fb_para1;
+        __disp_fb_create_para_t fb_para;//, fb_para1;
         __s32 i;
         __bool need_open_hdmi = 0;
 

@@ -147,7 +147,8 @@ static int gpio_switch_resume(struct platform_device *pdev)
 	temp = readl(tpadc_base + TP_CTRL1);
 	temp |= (1<<4);	
 	writel(temp, tpadc_base + TP_CTRL1);
-	
+
+	return 0;
 }
 static int gpio_switch_probe(struct platform_device *pdev)
 {
@@ -255,7 +256,7 @@ static int __devexit gpio_switch_remove(struct platform_device *pdev)
 static struct platform_driver gpio_switch_driver = {
 	.probe		= gpio_switch_probe,
 	.remove		= __devexit_p(gpio_switch_remove),
-	.resume		=gpio_switch_resume,
+	.resume		= gpio_switch_resume,
 	.driver		= {
 		.name	= "switch-gpio",
 		.owner	= THIS_MODULE,

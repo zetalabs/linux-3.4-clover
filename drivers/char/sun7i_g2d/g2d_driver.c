@@ -383,45 +383,45 @@ long g2d_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		g2d_blt blit_para;
 		if(copy_from_user(&blit_para, (g2d_blt *)arg, sizeof(g2d_blt)))
 		{
-			kfree(&blit_para);
+			//kfree(&blit_para);
 			ret = -EFAULT;
 			goto err_noput;
 		}
-	    ret = g2d_blit(&blit_para);
-    	break;
+		ret = g2d_blit(&blit_para);
+		break;
 	}
 	case G2D_CMD_FILLRECT:{
 		g2d_fillrect fill_para;
 		if(copy_from_user(&fill_para, (g2d_fillrect *)arg, sizeof(g2d_fillrect)))
 		{
-			kfree(&fill_para);
+			//kfree(&fill_para);
 			ret = -EFAULT;
 			goto err_noput;
 		}
-	    ret = g2d_fill(&fill_para);
-    	break;
+		ret = g2d_fill(&fill_para);
+		break;
 	}
 	case G2D_CMD_STRETCHBLT:{
 		g2d_stretchblt stre_para;	
 		if(copy_from_user(&stre_para, (g2d_stretchblt *)arg, sizeof(g2d_stretchblt)))
 		{
-			kfree(&stre_para);
+			//kfree(&stre_para);
 			ret = -EFAULT;
 			goto err_noput;
 		}
-	    ret = g2d_stretchblit(&stre_para);
-    	break;
+		ret = g2d_stretchblit(&stre_para);
+		break;
 	}
 	case G2D_CMD_PALETTE_TBL:{
 		g2d_palette pale_para;	
 		if(copy_from_user(&pale_para, (g2d_palette *)arg, sizeof(g2d_palette)))
 		{
-			kfree(&pale_para);
+			//kfree(&pale_para);
 			ret = -EFAULT;
 			goto err_noput;
 		}
-	    ret = g2d_set_palette_table(&pale_para);
-    	break;
+		ret = g2d_set_palette_table(&pale_para);
+		break;
 	}
 
 	/* just management memory for test */
@@ -438,20 +438,25 @@ long g2d_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 
 	case G2D_CMD_MEM_GETADR:
-	    if(g2d_mem[arg].b_used)
-	    {
-		    ret = g2d_mem[arg].phy_addr;
+		if(g2d_mem[arg].b_used)
+		{
+			ret = g2d_mem[arg].phy_addr;
 		}
 		else
 		{
 			ERR("mem not used in G2D_CMD_MEM_GETADR\n");
-		    ret = -1;
+			ret = -1;
 		}
 		break;
 
 	/* Invalid IOCTL call */
 	default:
+#if 0
 		return -EINVAL;
+#else
+		ret = -EINVAL;
+		goto err_noput;
+#endif
 	}
 
 err_noput:

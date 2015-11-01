@@ -50,7 +50,7 @@
 #include "core.h"
 
 void sw_pdev_init(void);
-int arch_timer_common_register(void);
+int __cpuinit arch_timer_common_register(void);
 
 static struct map_desc sun7i_io_desc[] __initdata = {
 	{IO_ADDRESS(SW_PA_IO_BASE), __phys_to_pfn(SW_PA_IO_BASE),  SW_IO_SIZE, MT_DEVICE_NONSHARED},
@@ -97,13 +97,13 @@ static void sun7i_fixup(struct tag *tags, char **from,
 					__func__,
 					t->u.mem.start,
 					t->u.mem.size >> 20);
-            if (t->u.mem.start + t->u.mem.size < SW_G2D_MEM_BASE + SW_G2D_MEM_SIZE)
-            {
-                pr_debug("check!,reserve hw mem is : start:%x, size:%d\n",
-                        (unsigned int)SW_G2D_MEM_BASE,
-                        SW_G2D_MEM_SIZE);
-            }
-            sun7i_mem_size = t->u.mem.size;
+			if (t->u.mem.start + t->u.mem.size < SW_G2D_MEM_BASE + SW_G2D_MEM_SIZE)
+			{
+				pr_debug("check!,reserve hw mem is : start:%x, size:%d\n",
+					(unsigned int)SW_G2D_MEM_BASE,
+					SW_G2D_MEM_SIZE);
+			}
+			sun7i_mem_size = t->u.mem.size;
 			return;
 		}
 	}
@@ -111,7 +111,7 @@ static void sun7i_fixup(struct tag *tags, char **from,
 
 	meminfo->bank[0].start = PLAT_PHYS_OFFSET;
 	meminfo->bank[0].size = PLAT_MEM_SIZE;
-    sun7i_mem_size = PLAT_MEM_SIZE;
+	sun7i_mem_size = PLAT_MEM_SIZE;
 	meminfo->nr_banks = 1;
 }
 
@@ -127,30 +127,30 @@ u32 g_mem_resv[][2] = {
 
 u32 sun7i_ion_carveout_size(void)
 {        
-    u32 size = 0;
+	u32 size = 0;
 #if defined(CONFIG_ION) || defined(CONFIG_ION_MODULE)
-    size = ION_CARVEOUT_MEM_SIZE_DEFAULT;
-    if (sun7i_mem_size > 512 * 1024 *1024)
-    {
+	size = ION_CARVEOUT_MEM_SIZE_DEFAULT;
+	if (sun7i_mem_size > 512 * 1024 *1024)
+	{
 #ifdef CONFIG_ION_SUNXI_CARVEOUT_SIZE_1G
-        size = CONFIG_ION_SUNXI_CARVEOUT_SIZE_1G * SZ_1M;
-#endif    
-    }
-    else
-    {
-#ifdef CONFIG_ION_SUNXI_CARVEOUT_SIZE_512M
-        size = CONFIG_ION_SUNXI_CARVEOUT_SIZE_512M * SZ_1M;
-#endif    
-    }
+		size = CONFIG_ION_SUNXI_CARVEOUT_SIZE_1G * SZ_1M;
 #endif
-    return size;
+	}
+	else
+	{
+#ifdef CONFIG_ION_SUNXI_CARVEOUT_SIZE_512M
+		size = CONFIG_ION_SUNXI_CARVEOUT_SIZE_512M * SZ_1M;
+#endif
+	}
+#endif
+	return size;
 }
 EXPORT_SYMBOL(sun7i_ion_carveout_size);
 
 static void __init sun7i_reserve(void)
 {
 	u32 	i = 0;
-    u32 size = sun7i_ion_carveout_size();
+	u32 size = sun7i_ion_carveout_size();
 
 	pr_info("memory reserved(in bytes):\n");
 	for(i = 0; i < ARRAY_SIZE(g_mem_resv); i++) {
@@ -160,33 +160,32 @@ static void __init sun7i_reserve(void)
 		else
 			pr_info("\t: 0x%08x, 0x%08x\n", g_mem_resv[i][0], g_mem_resv[i][1]);
 	}
-    if (size != 0){
-        if(0 != memblock_reserve(ION_CARVEOUT_MEM_BASE, size))
-            printk("%s err, line %d, base 0x%08x, size 0x%08x\n", __func__, 
-                __LINE__, (u32)ION_CARVEOUT_MEM_BASE, size);
-        else
-            pr_info("\t: 0x%08x, 0x%08x\n", (u32)ION_CARVEOUT_MEM_BASE, 
-                size);
-    }
+	if (size != 0) {
+		if(0 != memblock_reserve(ION_CARVEOUT_MEM_BASE, size))
+			printk("%s err, line %d, base 0x%08x, size 0x%08x\n", __func__,
+				__LINE__, (u32)ION_CARVEOUT_MEM_BASE, size);
+		else
+			pr_info("\t: 0x%08x, 0x%08x\n", (u32)ION_CARVEOUT_MEM_BASE, size);
+	}
 	/*
 	 * reserve for DE and VE
 	 */
 #ifndef CONFIG_ION
 	if (sun7i_mem_size > 512 * 1024 *1024)
 	{
-        memblock_remove(HW_RESERVED_MEM_BASE, HW_RESERVED_MEM_SIZE_1G);
-        memblock_remove(SW_GPU_MEM_BASE, SW_GPU_MEM_SIZE_1G);
+		memblock_remove(HW_RESERVED_MEM_BASE, HW_RESERVED_MEM_SIZE_1G);
+		memblock_remove(SW_GPU_MEM_BASE, SW_GPU_MEM_SIZE_1G);
 	}
-    else
-    {
-        memblock_remove(HW_RESERVED_MEM_BASE, HW_RESERVED_MEM_SIZE_512M);
-        memblock_remove(SW_GPU_MEM_BASE, SW_GPU_MEM_SIZE_512M);
-    }
+	else
+	{
+		memblock_remove(HW_RESERVED_MEM_BASE, HW_RESERVED_MEM_SIZE_512M);
+		memblock_remove(SW_GPU_MEM_BASE, SW_GPU_MEM_SIZE_512M);
+	}
 #endif
-    if (SW_G2D_MEM_SIZE > 0)
-    {
-        memblock_remove(SW_G2D_MEM_BASE, SW_G2D_MEM_SIZE);
-    }
+	if (SW_G2D_MEM_SIZE > 0)
+	{
+		memblock_remove(SW_G2D_MEM_BASE, SW_G2D_MEM_SIZE);
+	}
 }
 
 void sun7i_get_gpu_addr(struct __sun7i_reserved_addr *gpu_addr)
