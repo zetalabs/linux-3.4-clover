@@ -141,6 +141,11 @@ build_modules()
         install
     )
 
+    #build rtl8723au_bt
+    make -C modules/rtl8723au_bt CROSS_COMPILE=${CROSS_COMPILE} \
+        LICHEE_MOD_DIR=${LICHEE_MOD_DIR} LICHEE_KDIR=${LICHEE_KDIR} \
+        ARCH=arm KERNEL_DIR=${LICHEE_KDIR} INSTALL_DIR=${LICHEE_MOD_DIR} \
+        install
     ##build ar6302 sdio wifi module
     #make -C modules/wifi/ar6302/AR6K_SDK_ISC.build_3.1_RC.329/host CROSS_COMPILE=${CROSS_COMPILE} \
     #    ARCH=arm KERNEL_DIR=${LICHEE_KDIR} INSTALL_DIR=${LICHEE_MOD_DIR} \
