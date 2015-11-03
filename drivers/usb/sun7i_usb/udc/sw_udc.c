@@ -2681,7 +2681,7 @@ static int sw_udc_get_frame(struct usb_gadget *_gadget)
 		return 0;
 	}
 
-	return USBC_REG_FRNUM(g_sw_udc_io.usb_vbase);
+	return (int)USBC_REG_FRNUM(g_sw_udc_io.usb_vbase);
 }
 
 /*
