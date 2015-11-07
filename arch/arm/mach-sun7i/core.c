@@ -151,6 +151,8 @@ static void __init sun7i_reserve(void)
 {
 	u32 	i = 0;
 	u32 size = sun7i_ion_carveout_size();
+	u32 fixup_base = 0;
+	u32 fixup_size = 0;
 
 	pr_info("memory reserved(in bytes):\n");
 	for(i = 0; i < ARRAY_SIZE(g_mem_resv); i++) {
@@ -185,6 +187,23 @@ static void __init sun7i_reserve(void)
 	if (SW_G2D_MEM_SIZE > 0)
 	{
 		memblock_remove(SW_G2D_MEM_BASE, SW_G2D_MEM_SIZE);
+	}
+	/*
+	 * fix 0xfff10780 memory corruption issue
+	 * refer to HW_RESERVED_MEM_SIZE_1G and HW_RESERVED_MEM_SIZE_512M
+	 */
+
+	if (sun7i_mem_size > 512 * 1024 *1024)
+	{
+		fixup_size = 0x01000000;
+		fixup_base = PLAT_PHYS_OFFSET + sun7i_mem_size - fixup_size;
+	}
+	if (fixup_size != 0) {
+		if(0 != memblock_reserve(fixup_base, fixup_size))
+			printk("%s err, line %d, base 0x%08x, size 0x%08x\n", __func__,
+				__LINE__, fixup_base, fixup_size);
+		else
+			pr_info("\t: 0x%08x, 0x%08x\n", fixup_base, fixup_size);
 	}
 }
 
