@@ -127,6 +127,7 @@ typedef struct
 
         //add by heyihang.Jan 28, 2013
         __s32 (*vsync_event)(__u32 sel);
+	__s32 (*capture_event)(__u32 sel);
 	__u32 hdmi_cts_compatibility;//0:force hdmi; 1:force dvi; 2:auto
 }__disp_bsp_init_para;
 
@@ -169,6 +170,7 @@ extern __s32 BSP_disp_get_hue(__u32 sel);
 extern __s32 BSP_disp_enhance_enable(__u32 sel, __bool enable);
 extern __s32 BSP_disp_get_enhance_enable(__u32 sel);
 extern __s32 BSP_disp_capture_screen(__u32 sel, __disp_capture_screen_para_t * para);
+extern __s32 BSP_disp_capture_screen_stop(__u32 sel);
 extern __s32 BSP_disp_set_screen_size(__u32 sel, __disp_rectsz_t * size);
 extern __s32 BSP_disp_set_output_csc(__u32 sel, __disp_out_csc_type_t type);
 extern __s32 BSP_disp_de_flicker_enable(__u32 sel, __bool b_en);
@@ -233,6 +235,7 @@ extern __s32 BSP_disp_scaler_start(__u32 handle,__disp_scaler_para_t *scl);
 extern __s32 BSP_disp_scaler_start_ex(__u32 handle,__disp_scaler_para_t *scl);
 extern __s32 BSP_disp_store_scaler_reg(__u32 sel, __u32 addr);
 extern __s32 BSP_disp_restore_scaler_reg(__u32 sel, __u32 addr);
+extern __s32 BSP_disp_capture_screen_get_buffer_id(__u32 sel);
 
 extern __s32 BSP_disp_hwc_enable(__u32 sel, __bool enable);
 extern __s32 BSP_disp_hwc_set_pos(__u32 sel, __disp_pos_t *pos);

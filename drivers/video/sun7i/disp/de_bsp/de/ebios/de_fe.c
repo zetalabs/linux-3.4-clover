@@ -147,17 +147,16 @@ __s32 DE_SCAL_Config_Src(__u8 sel, __scal_buf_addr_t *addr, __scal_src_size_t *s
 	
 	if(type->mod == DE_SCAL_PLANNAR)
 	{
-	    scal_dev[sel]->linestrd0.dwval = image_w0;
+		scal_dev[sel]->linestrd0.dwval = image_w0;
 		scal_dev[sel]->linestrd1.dwval = image_w1;
 		scal_dev[sel]->linestrd2.dwval = image_w1;
-       
-        if(type->fmt == DE_SCAL_INYUV420)
-        {
-            scal_dev[sel]->linestrd0.dwval = ((image_w0+15)>>4)<<4;
-            scal_dev[sel]->linestrd1.dwval = ((image_w1+15)>>4)<<4;
-            scal_dev[sel]->linestrd2.dwval = ((image_w1+15)>>4)<<4;
-        }
 
+	if(type->fmt == DE_SCAL_INYUV420)
+	{
+        scal_dev[sel]->linestrd0.dwval = ((image_w0+15)>>4)<<4;
+        scal_dev[sel]->linestrd1.dwval = ((image_w1+15)>>4)<<4;
+        scal_dev[sel]->linestrd2.dwval = ((image_w1+15)>>4)<<4;
+	}
         de_scal_ch0_offset = image_w0 * y_off0 + x_off0;
         de_scal_ch1_offset = image_w1 * y_off1 + x_off1;
         de_scal_ch2_offset = image_w1 * y_off1 + x_off1;
@@ -1013,6 +1012,83 @@ __s32 DE_SCAL_Set_CSC_Coef(__u8 sel, __u8 in_csc_mode, __u8 out_csc_mode, __u8 i
     return 0;
 }
 
+//*********************************************************************************************
+// function         : DE_SCAL_Set_CSC_Coef_For_Capture(__u8 sel, __u8 in_csc_mode, __u8 out_csc_mode, __u8 incs, __u8 outcs, __u32  in_br_swap, __u32 out_br_swap)
+// description      : set scaler input/output color space convert coefficients
+// parameters       :
+//                 sel <scaler select>
+//                 in_csc_mode <color space select, bt601, bt709, ycc, xycc>
+//                 out_csc_mode <color space select, bt601, bt709, ycc, xycc>
+//                 incs <source color space>
+//                 |    0  rgb
+//                 |    1  yuv
+//                 outcs <destination color space>
+//                 |    0  rgb
+//                 |    1  yuv
+//                 in_br_swap <swap b r component>
+//                 |    0  normal
+//                 |    1  swap enable, note: when input yuv, then u v swap
+//                 out_br_swap <swap output b r component>
+//                 |    0  normal
+//                 |    1  swap enable, note: when output yuv, then u v swap
+// return           : 
+//               success
+//*********************************************************************************************** 
+__s32 DE_SCAL_Set_CSC_Coef_For_Capture(__u8 sel, __u8 in_csc_mode, __u8 out_csc_mode, __u8 incs, __u8 outcs, __u32  in_br_swap, __u32 out_br_swap)                                                                
+{
+    __u8  csc_pass;
+    __u32 csc_coef_addr;
+    __u32 i;
+    
+    //compute csc bypass enable
+    if(incs == 0x0)  //rgb 
+    {
+        if(outcs == 0x0) //rgb
+        {
+            csc_pass = 0x01;
+            csc_coef_addr = (((in_csc_mode&0x3)<<7) + ((in_csc_mode&0x3)<<6)) + 0x60;
+        }
+        else
+        {
+        	//out_br_swap = 0;
+            csc_pass = 0x0;
+            csc_coef_addr = (((in_csc_mode&0x3)<<7) + ((in_csc_mode&0x3)<<6)) + 0x60 + 0x30;
+        }
+    }
+    else
+    {
+    	//in_br_swap = 0;
+        if(outcs == 0x0)
+        {
+            csc_pass = 0x00;
+            csc_coef_addr = (((in_csc_mode&0x3)<<7) + ((in_csc_mode&0x3)<<6));
+        }
+        else
+        {
+            csc_pass = 0x01;
+            csc_coef_addr = (((in_csc_mode&0x3)<<7) + ((in_csc_mode&0x3)<<6)) + 0x30;
+        }
+    }
+    
+    if(in_br_swap || out_br_swap)
+   	{
+   		csc_pass = 0;
+   	}
+   	if(!csc_pass)
+    {
+        for(i=0; i<4; i++)
+        {
+            scal_dev[sel]->csc_coef[i].dwval = csc_tab_for_capture[(csc_coef_addr>>2) + i];
+			scal_dev[sel]->csc_coef[i+4 + out_br_swap * 4].dwval = csc_tab_for_capture[(csc_coef_addr>>2) + i + 4 + in_br_swap * 4];
+			scal_dev[sel]->csc_coef[i+8 - out_br_swap * 4].dwval = csc_tab_for_capture[(csc_coef_addr>>2) + i + 8 - in_br_swap * 4];
+			
+        }
+    }
+    scal_dev[sel]->bypass.bits.csc_bypass_en = csc_pass;
+    
+    
+    return 0;
+}
 
 //*********************************************************************************************
 // function         : DE_SCAL_Set_Out_Format(__u8 sel, __scal_out_type_t *out_type)

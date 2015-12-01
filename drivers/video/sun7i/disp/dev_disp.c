@@ -332,7 +332,7 @@ static void resume_work_1(struct work_struct *work)
         g_disp_drv.b_lcd_open[sel] = 1;
 }
 
-
+extern __s32 capture_event(__u32 sel);
 __s32 DRV_DISP_Init(void)
 {
         __disp_bsp_init_para para;
@@ -364,6 +364,7 @@ __s32 DRV_DISP_Init(void)
 
         //add by heyihang.Jan 28, 2013
         para.vsync_event    = DRV_disp_vsync_event;
+	 para.capture_event          = capture_event;
 
     	memset(&g_disp_drv, 0, sizeof(__disp_drv_t));
         init_timer(&g_disp_drv.disp_timer[0]);
@@ -1103,7 +1104,11 @@ long disp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
     	        case DISP_CMD_CAPTURE_SCREEN:
     	                ret = BSP_disp_capture_screen(ubuffer[0], (__disp_capture_screen_para_t *)ubuffer[1]);
     	                break;
-
+						
+		 case DISP_CMD_CAPTURE_SCREEN_STOP:
+			   ret = BSP_disp_capture_screen_stop(ubuffer[0]);
+            		  break;
+					  
                 case DISP_CMD_SET_SCREEN_SIZE:
                         ret = BSP_disp_set_screen_size(ubuffer[0], (__disp_rectsz_t*)ubuffer[1]);
                         break;
@@ -2103,6 +2108,8 @@ struct platform_device disp_device =
 };
 
 extern int disp_attr_node_init(void);
+extern int capture_module_init(void);
+extern void capture_module_exit(void);
 
 int __init disp_module_init(void)
 {
@@ -2144,6 +2151,7 @@ int __init disp_module_init(void)
 #endif
 #endif
         disp_attr_node_init();
+	 capture_module_init();
         return ret;
 }
 
@@ -2165,6 +2173,7 @@ static void __exit disp_module_exit(void)
         class_destroy(disp_class);
 
         cdev_del(my_cdev);
+	 capture_module_exit();
 }
 
 EXPORT_SYMBOL(disp_set_hdmi_func);

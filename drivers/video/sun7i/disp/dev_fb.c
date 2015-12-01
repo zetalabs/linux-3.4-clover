@@ -2,6 +2,7 @@
 #include "dev_disp.h"
 
 #define MY_BYTE_ALIGN(x) ( ( (x + (4*1024-1)) >> 12) << 12)             /* alloc based on 4K byte */
+#define _ALIGN( value, base ) (((value) + ((base) - 1)) & ~((base) - 1))
 
 struct __fb_addr_para {
         int fb_paddr;
@@ -1075,7 +1076,6 @@ static void send_vsync_work_1(struct work_struct *work)
 	kobject_uevent_env(&g_fbi.dev->kobj, KOBJ_CHANGE, envp);
 }
 
-#define _ALIGN( value, base ) (((value) + ((base) - 1)) & ~((base) - 1))
 static int dispc_update_regs(setup_dispc_data_t *psDispcData)
 {
     __disp_layer_info_t layer_info;
@@ -1167,26 +1167,41 @@ static int dispc_update_regs(setup_dispc_data_t *psDispcData)
 		if(i < layer_num)
 		{
 		    memcpy(&layer_info, &psDispcData->layer_info[start_idx + i], sizeof(__disp_layer_info_t));
-
+		    
+		    if((disp == 0) && (psDispcData->post2_layers > psDispcData->primary_display_layer_num)
+            && (layer_info.fb.format == DISP_FORMAT_YUV420))
+        {
+            BSP_disp_layer_close(disp, hdl);
+            continue;
+        }       
+        if((disp == 1) && (psDispcData->post2_layers - psDispcData->primary_display_layer_num > 1)
+            && (layer_info.fb.format == DISP_FORMAT_ARGB8888)
+            && (layer_info.scn_win.width == 1920))
+        {
+            /*printk(KERN_WARNING "########### dispc_update_regs %d, layer_num %d, format: %d, scn_width = %d\n",
+                    disp, layer_num, layer_info.fb.format, layer_info.scn_win.width);*/
+            BSP_disp_layer_close(disp, hdl);
+            continue;
+        }
+        
 		    if(layer_info.fb.mode == DISP_MOD_NON_MB_PLANAR)
 		    {
 			if(layer_info.fb.format == DISP_FORMAT_YUV420)
 			{
 			    //layer_info.fb.addr[2] = layer_info.fb.addr[0] + layer_info.fb.size.width * layer_info.fb.size.height;
 			    //layer_info.fb.addr[1] = layer_info.fb.addr[2] + (layer_info.fb.size.width * layer_info.fb.size.height)/4;
-          layer_info.fb.addr[2] = layer_info.fb.addr[0] + (_ALIGN(layer_info.fb.size.width, 16)) * layer_info.fb.size.height;
+			    layer_info.fb.addr[2] = layer_info.fb.addr[0] + (_ALIGN(layer_info.fb.size.width, 16)) * layer_info.fb.size.height;
 			    layer_info.fb.addr[1] = layer_info.fb.addr[2] + (_ALIGN(layer_info.fb.size.width/2,16) * layer_info.fb.size.height)/2;
 			}
 		    }
-			
-			if(layer_info.fb.mode == DISP_MOD_NON_MB_UV_COMBINED)
+
+			 if(layer_info.fb.mode == DISP_MOD_NON_MB_UV_COMBINED)
 			    {
 					if(layer_info.fb.format == DISP_FORMAT_YUV420)
 					{
 					    layer_info.fb.addr[1] = layer_info.fb.addr[0] + (_ALIGN(layer_info.fb.size.width, 16)) * layer_info.fb.size.height;
 					}
 			    }
-			
 		    BSP_disp_layer_set_para(disp, hdl, &layer_info);
 			BSP_disp_layer_set_top(disp, hdl);
 		    BSP_disp_layer_open(disp, hdl);

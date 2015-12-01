@@ -4,6 +4,7 @@
 #include "disp_video.h"
 #include "disp_scaler.h"
 
+extern __s32 disp_capture_screen_proc(__u32 sel);
 __s32 BSP_disp_cmd_cache(__u32 sel)
 {
     gdisp.screen[sel].cache_flag = TRUE;
@@ -51,7 +52,7 @@ void LCD_vbi_event_proc(__u32 sel, __u32 tcon_index)
         }
         
 	Video_Operation_In_Vblanking(sel, tcon_index);
-        
+        disp_capture_screen_proc(sel);
         cur_line = LCDC_get_cur_line(sel, tcon_index);
         start_delay = LCDC_get_start_delay(sel, tcon_index);
         if(cur_line > start_delay-3)
