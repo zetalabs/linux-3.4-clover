@@ -490,7 +490,7 @@ static int __init script_init(void)
                 sub_val[j].gpio.data = (u32)origin_gpio->data;
                 sub_val[j].gpio.port = (u32)origin_gpio->port;
                 sub_val[j].gpio.port_num = (u32)origin_gpio->port_num;
-					sub_key[j].type = SCIRPT_ITEM_VALUE_TYPE_PIO;
+                sub_key[j].type = SCIRPT_ITEM_VALUE_TYPE_PIO;
             } else {
                 sub_key[j].type = SCIRPT_ITEM_VALUE_TYPE_INVALID;
             }

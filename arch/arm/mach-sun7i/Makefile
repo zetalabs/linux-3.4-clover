@@ -7,6 +7,7 @@ obj-y += clock/
 obj-y += dma/
 obj-y += gpio/
 obj-y += sys_config.o
+obj-y += bandwidth.o
 obj-$(CONFIG_CPU_FREQ) += cpu-freq/
 obj-$(CONFIG_SW_DRAM_FREQ) += dram-freq/
 obj-$(CONFIG_PM) += pm/

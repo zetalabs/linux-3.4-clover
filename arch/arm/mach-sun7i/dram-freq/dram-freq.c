@@ -192,13 +192,12 @@ extern int sw_pause_ehci(__u32 usbc_no);
 extern int sw_restart_ehci(__u32 usbc_no);
 extern __u32 pm_enable_watchdog(void);
 extern void pm_disable_watchdog(__u32 dogMode);
-unsigned int dram_setting_counter = 0;
 static int __dramfreq_set(unsigned int dram_freq_ponit)
 {
     int (*soft_switch_main)(unsigned int freq_point, standy_dram_para_t *pdram_para, void*);
     unsigned long flags;
-    unsigned long long getfreq_time_usecs = 0;
-    ktime_t calltime, delta, rettime;
+//    unsigned long long getfreq_time_usecs = 0;
+//    ktime_t calltime, delta, rettime;
     int index = 0;
     int new_vdd, last_vdd;
     int dogmod = 0;
@@ -234,15 +233,15 @@ static int __dramfreq_set(unsigned int dram_freq_ponit)
 
     spin_lock_irqsave(&dram_info.spin_lock, flags);
     dogmod = pm_enable_watchdog();
-    calltime = ktime_get();
+//    calltime = ktime_get();
 
     start_switch_dram:
     soft_switch_main(dram_freq_ponit, &dram_info.dram_para, (void *)&&start_switch_dram);
     dram_info.cur_freq = dram_freq_ponit;
 
-    rettime = ktime_get();
-    delta = ktime_sub(rettime, calltime);
-    getfreq_time_usecs = ktime_to_ns(delta) >> 10;
+//    rettime = ktime_get();
+//    delta = ktime_sub(rettime, calltime);
+//    getfreq_time_usecs = ktime_to_ns(delta) >> 10;
 
     pm_disable_watchdog(dogmod);
     spin_unlock_irqrestore(&dram_info.spin_lock, flags);
@@ -264,8 +263,7 @@ static int __dramfreq_set(unsigned int dram_freq_ponit)
         dram_info.last_vdd = new_vdd;
     }
 #endif
-    dram_setting_counter++;
-    printk("[switch time]: %Ld usecs, counter:%d\n", getfreq_time_usecs, dram_setting_counter);
+//    pr_debug("[switch time]: %Ld usecs, counter:%d\n", getfreq_time_usecs, dram_setting_counter);
 
     return 0;
 }
@@ -346,8 +344,8 @@ static void dramfreq_late_resume(struct early_suspend *h)
 {
     DRAMFREQ_DBG("%s:%s:%d\n", __FILE__, __func__,__LINE__);
     cancel_delayed_work_sync(&dram_info.work);
+    dram_info.target_freq = DRAM_NORMAL_FREQ;
     if (__dram_get_cur() != DRAM_NORMAL_FREQ){
-        dram_info.target_freq = DRAM_NORMAL_FREQ;
         do_dramfreq_set(&dram_info.work.work);
         DRAMFREQ_DBG("%s:%s done\n", __FILE__, __func__);
     }

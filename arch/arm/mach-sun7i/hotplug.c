@@ -42,7 +42,7 @@ int platform_cpu_kill(unsigned int cpu)
     }
     tmp_cpu = get_cpu();
     put_cpu();
-    pr_info("[hotplug]: cpu(%d) try to kill cpu(%d)\n", tmp_cpu, cpu);
+    pr_debug("[hotplug]: cpu(%d) try to kill cpu(%d)\n", tmp_cpu, cpu);
 
     for (k = 0; k < 1000; k++) {
         if (cpumask_test_cpu(cpu, &dead_cpus) && IS_WFI_MODE(cpu)) {
@@ -70,7 +70,7 @@ int platform_cpu_kill(unsigned int cpu)
             writel(0x3f, IO_ADDRESS(SW_PA_CPUCFG_IO_BASE) + AW_CPU1_PWR_CLAMP);
             writel(0x7f, IO_ADDRESS(SW_PA_CPUCFG_IO_BASE) + AW_CPU1_PWR_CLAMP);
             writel(0xff, IO_ADDRESS(SW_PA_CPUCFG_IO_BASE) + AW_CPU1_PWR_CLAMP);
-            pr_info("[hotplug]: cpu%d is killed!\n", cpu);
+            pr_debug("[hotplug]: cpu%d is killed!\n", cpu);
 
             return 1;
         }
@@ -132,9 +132,9 @@ int platform_cpu_disable(unsigned int cpu)
 #define LOAD_FRAC(x) LOAD_INT(((x) & (FIXED_1-1)) * 100)
 
 #define DEF_CPU_UP_LOADING        ((1<<FSHIFT) + (60)*(FIXED_1-1)/100)
-#define DEF_CPU_DOWN_LOADING      ((1<<FSHIFT) + (80)*(FIXED_1-1)/100) 
+#define DEF_CPU_DOWN_LOADING      ((1<<FSHIFT) + (80)*(FIXED_1-1)/100)
 #define DEF_CPU_UP_ACTIVE_TASK    4
-#define DEF_CPU_DOWN_ACTIVE_TASK  1 
+#define DEF_CPU_DOWN_ACTIVE_TASK  1
 #define DEF_CPU_HOTPLUG_SAMPLIMG_RATE 300000
 
 /*
@@ -151,7 +151,7 @@ struct cpu_hotplug_info_s {
      * when user is changing the governor or limits.
      */
     struct mutex timer_mutex;   /* semaphore for protection     */
-    
+
     unsigned int sampling_rate;     /* dvfs sample rate                             */
 
     /* pegasusq tuners */
@@ -170,7 +170,7 @@ static struct cpu_hotplug_info_s cpu_hotplug_info = {
 };
 
 static struct workqueue_struct *hotplug_workqueue;
-//static int suspend_hotplug_lock = 0;
+static int suspend_hotplug_lock = 0;
 
 /*
  * lock cpu number, the number of onlie cpu should less then num_core
@@ -183,7 +183,7 @@ int cpu_hotplug_set_lock(int num_core)
     if (num_core < 0 || num_core > num_possible_cpus()) {
         return -EINVAL;
     }
-    
+
     mutex_lock(&cpu_hotplug_info.timer_mutex);
     cpu_hotplug_info.cpulock_setting = num_core;
     if (num_core == 0 && cpu_hotplug_info.cpulock_powernow != 0){
@@ -237,7 +237,7 @@ static void __cpuinit cpu_up_work(struct work_struct *work)
         if (nr_up-- == 0)
             break;
 
-        printk(KERN_DEBUG "cpu up:%d\n", cpu);
+        pr_debug("cpu up:%d\n", cpu);
         cpu_up(cpu);
     }
 //    mutex_unlock(&hotplug_info->timer_mutex);
@@ -251,7 +251,7 @@ static void cpu_down_work(struct work_struct *work)
     int cpu, nr_down, online, hotplug_lock;
     struct cpu_hotplug_info_s *hotplug_info =
         container_of(work, struct cpu_hotplug_info_s, down_work);
-    
+
 //    mutex_lock(&hotplug_info->timer_mutex);
     online = num_online_cpus();
     hotplug_lock = atomic_read(&hotplug_info->hotplug_lock);
@@ -293,7 +293,7 @@ static int check_hotplug(struct cpu_hotplug_info_s *hotplug_info)
         ncpus = hotplug_lock;
         goto __do_hotplug;
     }
-    
+
     get_avenrun_sec(load, FIXED_1/200, 0);
     if (unlikely(cpu_hotplug_info.dvfs_debug & FANTASY_DEBUG_HOTPLUG)) {
         printk("load0:%lx,(%lu.%02lu); load1:%lx,(%lu.%02lu), active task:%lu\n", 
@@ -310,14 +310,14 @@ static int check_hotplug(struct cpu_hotplug_info_s *hotplug_info)
         && load[0] < DEF_CPU_DOWN_LOADING && online > 1){
         ncpus = online - 1;
     }
-    
+
 __do_hotplug:
     if (ncpus > online){
         queue_work_on(0, hotplug_workqueue, &hotplug_info->up_work);
     }else if (ncpus < online) {
         queue_work_on(0, hotplug_workqueue, &hotplug_info->down_work);
     }
-    
+
     return 0;
 }
 
@@ -340,22 +340,20 @@ static int powernow_notifier_call(struct notifier_block *nfb,
     int retval = NOTIFY_DONE;
     int cpu_lock = -1;
     int hotplug_lock;
-    
-   // if (mode == SW_POWERNOW_MAXPOWER){
-    //    queue_work_on(0, hotplug_workqueue, &cpu_hotplug_info.up_work);
-   // }
-    
+
+    if (mode == SW_POWERNOW_MAXPOWER){
+        queue_work_on(0, hotplug_workqueue, &cpu_hotplug_info.up_work);
+    }
     switch (mode) {
     case SW_POWERNOW_EXTREMITY:
-    case SW_POWERNOW_MAXPOWER:
         cpu_lock = num_possible_cpus();
         break;
-                
+
     case SW_POWERNOW_PERFORMANCE:
     case SW_POWERNOW_NORMAL:
         cpu_lock = 0;
         break;
-        
+
     default:
         retval = -EINVAL;
         break;
@@ -384,23 +382,24 @@ static int hotplug_pm_notify(struct notifier_block *nb, unsigned long event, voi
         cancel_delayed_work_sync(&hotplug_info->work);
         cancel_work_sync(&hotplug_info->up_work);
         cancel_work_sync(&hotplug_info->down_work);
-       // suspend_hotplug_lock = atomic_read(&hotplug_info->hotplug_lock);
-       // if (suspend_hotplug_lock){
-       //     atomic_set(&hotplug_info->hotplug_lock, 0);
-       // }
+        suspend_hotplug_lock = atomic_read(&hotplug_info->hotplug_lock);
+        if (suspend_hotplug_lock){
+            atomic_set(&hotplug_info->hotplug_lock, 0);
+        }
         cpu_down_work(&hotplug_info->down_work);
     } else if (event == PM_POST_SUSPEND) {
         delay = usecs_to_jiffies(hotplug_info->sampling_rate);
-       //  if (suspend_hotplug_lock){
-       //     atomic_set(&hotplug_info->hotplug_lock, suspend_hotplug_lock);
-       //     suspend_hotplug_lock = 0;
-       // }
+        if (suspend_hotplug_lock){
+            atomic_set(&hotplug_info->hotplug_lock, suspend_hotplug_lock);
+            suspend_hotplug_lock = 0;
+        }
         queue_delayed_work(hotplug_workqueue, &hotplug_info->work, delay);
     }
-    //if (num_online_cpus() != 1){
-    //    printk("event:%d num_online_cpus:%d\n", event, num_online_cpus());
-    //    return NOTIFY_BAD;
-    //}
+
+    if (num_online_cpus() != 1){
+        printk("event:%d num_online_cpus:%d\n", event, num_online_cpus());
+        return NOTIFY_BAD;
+    }
     return NOTIFY_OK;
 }
 
@@ -426,10 +425,10 @@ static int __init sunxi_hotplug_initcall(void)
     INIT_WORK(&cpu_hotplug_info.up_work, cpu_up_work);
     INIT_WORK(&cpu_hotplug_info.down_work, cpu_down_work);
     mutex_init(&cpu_hotplug_info.timer_mutex);
-    
+
     INIT_DELAYED_WORK_DEFERRABLE(&cpu_hotplug_info.work, do_hotplug_timer);
     queue_delayed_work(hotplug_workqueue, &cpu_hotplug_info.work, delay);
-    
+
     register_sw_powernow_notifier(&hotplug_powernow_notifier);
     register_pm_notifier(&hotplug_pm_notifier);
     return ret;

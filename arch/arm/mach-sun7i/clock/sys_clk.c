@@ -84,7 +84,7 @@ static __aw_ccu_clk_id_e sys_clk_get_parent(__aw_ccu_clk_id_e id)
                 case 0:
                     return AW_SYS_CLK_HOSC;
                 case 1:
-                    return AW_SYS_CLK_PLL62;
+                    return AW_SYS_CLK_PLL6;
                 case 2:
                     return AW_SYS_CLK_LOSC;
                 case 3:
@@ -313,7 +313,7 @@ static __u64 sys_clk_get_rate(__aw_ccu_clk_id_e id)
                     tmpApb1Rate = 24000000;
                     break;
                 case 1:
-                    tmpApb1Rate = sys_clk_get_rate(AW_SYS_CLK_PLL62);
+                    tmpApb1Rate = sys_clk_get_rate(AW_SYS_CLK_PLL6);
                     break;
                 case 2:
                     tmpApb1Rate = 32768;
@@ -403,7 +403,7 @@ static __s32 sys_clk_set_parent(__aw_ccu_clk_id_e id, __aw_ccu_clk_id_e parent)
                 case AW_SYS_CLK_HOSC:
                     aw_ccu_reg->Apb1ClkDiv.ClkSrc = 0;
                     break;
-                case AW_SYS_CLK_PLL62:
+                case AW_SYS_CLK_PLL6:
                     aw_ccu_reg->Apb1ClkDiv.ClkSrc = 1;
                     break;
                 default:

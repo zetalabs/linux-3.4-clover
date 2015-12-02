@@ -205,7 +205,7 @@ static int aw_pm_valid(suspend_state_t state)
     if(1 == standby_mode){
         version = sw_get_ic_ver();
         if(!(MAGIC_VER_A13B == version || MAGIC_VER_A12B == version || MAGIC_VER_A10SB == version)){
-            printk("ic version: %d not support super standby. \n", version);
+            pr_info("ic version: %d not support super standby. \n", version);
             standby_mode = 0;
         }
     }
@@ -662,9 +662,9 @@ static int aw_pm_enter(suspend_state_t state)
         }
         /* goto sram and run */
         printk("standby_mode:%d, standby_type:%d, line:%d\n",standby_mode, standby_type, __LINE__);
-        //__cpuc_flush_kern_all();
-        //__cpuc_flush_user_all();
-        //__cpuc_coherent_kern_range(0xc0000000, 0xffffffff-1);
+        __cpuc_flush_kern_all();
+        __cpuc_flush_user_all();
+        __cpuc_coherent_kern_range(0xc0000000, 0xffffffff-1);
         standby(&standby_info);
         printk("standby_mode:%d, standby_type:%d, line:%d\n",standby_mode, standby_type, __LINE__);
     }else if(SUPER_STANDBY == standby_type){

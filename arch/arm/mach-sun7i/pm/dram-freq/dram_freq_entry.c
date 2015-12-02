@@ -37,70 +37,6 @@ void checksum(int *addr, int length, int flag, int *pcrc);
 int sum[2048];
 #endif
 
-#define SDRAM_REG_BASE (0xF1C01000)
-#define SDRAM_HOST_NUMBER 32
-static unsigned int dram_host_back[SDRAM_HOST_NUMBER];
-void dram_counter_enable(int port)
-{
-    unsigned int * addr;
-    unsigned int value;
-    if (port > SDRAM_HOST_NUMBER || port < 0){
-        return;
-    }
-    addr = (unsigned int *)(SDRAM_REG_BASE + 0x250 + port*4);
-    value = *addr;
-    value |= (0x3 << 30);
-    *addr = value;
-}
-
-void dram_counter_reset(void)
-{
-    unsigned int * addr = (unsigned int *)(SDRAM_REG_BASE + 0x244);
-    unsigned int value = *addr;
-    value &=~(0x1 << 17);
-    *addr = value;
-    value |=(0x1 << 17);
-    *addr = value;
-}
-
-unsigned int dram_counter_read(void)
-{
-    unsigned int * addr = (unsigned int *)(SDRAM_REG_BASE + 0x244);
-    unsigned int value = *addr;
-    value &=~(0x1 << 17);
-    *addr = value;
-    return *(unsigned int*)(SDRAM_REG_BASE + 0x238);
-}
-void dram_host_save(void)
-{
-    int i;
-    unsigned int *addr = (unsigned int *)(SDRAM_REG_BASE + 0x250);
-    for (i = 0; i < SDRAM_HOST_NUMBER; i++,addr++){
-        dram_host_back[i] = *addr;
-    }
-}
-void dram_host_restore(void)
-{
-    int i;
-    unsigned int *addr = (unsigned int *)(SDRAM_REG_BASE + 0x250);
-    for (i = 0; i < SDRAM_HOST_NUMBER; i++,addr++){
-        *addr = dram_host_back[i];
-    }
-}
-void dram_host_disable(int port)
-{
-    int i;
-    unsigned int *addr;
-    unsigned int regval = *(unsigned int *)(0xF1C01000 + 0x250);
-    if (port > SDRAM_HOST_NUMBER || port < 0){
-        return;
-    }
-    addr = (unsigned int *)(SDRAM_REG_BASE + 0x250);
-    regval = *(addr + port);
-    regval &= ~0x1;
-    *(addr + port) = regval;
-}
-
 /*
 *********************************************************************************************************
 *                                   STANDBY MAIN PROCESS ENTRY
@@ -140,21 +76,6 @@ int __attribute__((section(".dram_main"))) dram_freq_main(unsigned int freq_poin
     checksum((int *)sp_backup, 0x20, 0, sum);
     checksum((int *)0xc0000000, 0x800000, 0, sum+100);
 #endif
-    dram_host_save();
-    if (0)
-    {
-        dram_host_disable(29);
-    }else{
-        int i;
-        for (i = 0; i < 31; i++){
-            if (i == 16){
-                continue;
-            }
-//            dram_host_disable(i);
-        }
-//        dram_host_disable(17);
-    }
-    dram_counter_reset();
 
     /* copy standby parameter from dram */
     standby_memcpy(&g_dram_para, pdram_para, sizeof(g_dram_para));
@@ -174,16 +95,12 @@ int __attribute__((section(".dram_main"))) dram_freq_main(unsigned int freq_poin
     //printk("dram_freq_jum :%d!\n", freq_point);
     dram_freq_jum(freq_point, &g_dram_para);
 
-    if (dram_counter_read()){
-//        printk("dram_counter_read:%d\n",dram_counter_read());
-    }
     /* restore dram traning area */
     standby_memcpy((char *)DRAM_BASE_ADDR, (char *)dram_traning_back, DRAM_TRANING_SIZE);
 #ifdef DRAM_FREQ_CHECKSUM
     checksum((int *)sp_backup, 0x20, 1, sum);
     checksum((int *)0xc0000000, 0x800000, 1, sum+100);
 #endif
-    dram_host_restore();
     /* restore stack pointer register, switch stack back to dram */
     restore_sp(sp_backup);
 //    printk("restore_sp end:%x!\n", sp_backup);
