@@ -32,21 +32,24 @@
 #include <linux/clk.h>
 #include <linux/mutex.h>
 #include <mach/clock.h>
+#include <mach/platform.h> 
+#include <mach/hardware.h> 
 #include <mach/sys_config.h>
 #include <linux/dma-mapping.h>
 #include <mach/dma.h>
 #include <linux/wait.h>
 #include <linux/sched.h>
 #include <asm/cacheflush.h>
+#include <mach/gpio.h>
 #include <linux/gpio.h>
-#include "nand_lib.h"
+//#include "nand_lib.h"
 #include "nand_blk.h"
 
 static struct clk *ahb_nand_clk = NULL;
 static struct clk *mod_nand_clk = NULL;
 
-static __u32 NAND_DMASingleMap(__u32 rw, __u32 buff_addr, __u32 len);
-static __u32 NAND_DMASingleUnmap(__u32 rw, __u32 buff_addr, __u32 len);
+extern __u32 NAND_DMASingleMap(__u32 rw, __u32 buff_addr, __u32 len);
+extern __u32 NAND_DMASingleUnmap(__u32 rw, __u32 buff_addr, __u32 len);
 
 static __u32 dma_phy_address = 0;
 static __u32 dma_len_temp = 0;
@@ -66,10 +69,21 @@ static int nanddma_completed_flag = 1;
 
 static int dma_start_flag = 0;
 
-static int nandrb_ready_flag = 1;
 
-static DECLARE_WAIT_QUEUE_HEAD(NAND_RB_WAIT);
 
+static DECLARE_WAIT_QUEUE_HEAD(NAND_RB_WAIT_CH0);
+static DECLARE_WAIT_QUEUE_HEAD(NAND_RB_WAIT_CH1);
+
+
+
+#ifdef __LINUX_NAND_SUPPORT_INT__
+static int nandrb_ready_flag[2] = {1, 1};
+static int nanddma_ready_flag[2] = {1, 1};
+
+
+#endif
+
+//#define NAND_DEBUG
 //#define RB_INT_MSG_ON
 #ifdef  RB_INT_MSG_ON
 #define dbg_rbint(fmt, args...) printk(fmt, ## args)
@@ -77,79 +91,44 @@ static DECLARE_WAIT_QUEUE_HEAD(NAND_RB_WAIT);
 #define dbg_rbint(fmt, ...)  ({})
 #endif
 
-//#define RB_INT_WRN_ON
+#define RB_INT_WRN_ON
 #ifdef  RB_INT_WRN_ON
 #define dbg_rbint_wrn(fmt, args...) printk(fmt, ## args)
 #else
 #define dbg_rbint_wrn(fmt, ...)  ({})
 #endif
 
-/*
-*********************************************************************************************************
-*                                               DMA TRANSFER END ISR
-*
-* Description: dma transfer end isr.
-*
-* Arguments  : none;
-*
-* Returns    : EPDK_TRUE/ EPDK_FALSE
-*********************************************************************************************************
-*/
-//struct sw_dma_client nand_dma_client = {
-//	.name="NAND_DMA",
-//};
+//#define DMA_INT_MSG_ON
+#ifdef  DMA_INT_MSG_ON
+#define dbg_dmaint(fmt, args...) printk(fmt, ## args)
+#else
+#define dbg_dmaint(fmt, ...)  ({})
+#endif
 
-int NAND_ClkRequest(void)
-{
-    printk("[NAND] nand clk request start\n");
-	ahb_nand_clk = clk_get(NULL, CLK_AHB_NAND);
-	if(!ahb_nand_clk||IS_ERR(ahb_nand_clk)) {
-		return -1;
-	}
-	mod_nand_clk = clk_get(NULL, CLK_MOD_NFC);
-		if(!mod_nand_clk||IS_ERR(mod_nand_clk)) {
-		return -1;
-	}
-	printk("[NAND] nand clk request ok!\n");
-	return 0;
-}
+#define DMA_INT_WRN_ON
+#ifdef  DMA_INT_WRN_ON
+#define dbg_dmaint_wrn(fmt, args...) printk(fmt, ## args)
+#else
+#define dbg_dmaint_wrn(fmt, ...)  ({})
+#endif
 
-void NAND_ClkRelease(void)
-{
-	clk_put(ahb_nand_clk);
-	clk_put(mod_nand_clk);
-}
+//for rb int
+extern void NFC_RbIntEnable(void);
+extern void NFC_RbIntDisable(void);
+extern void NFC_RbIntClearStatus(void);
+extern __u32 NFC_RbIntGetStatus(void);
+extern __u32 NFC_GetRbSelect(void);
+extern __u32 NFC_GetRbStatus(__u32 rb);
+extern __u32 NFC_RbIntOccur(void);
 
+extern void NFC_DmaIntEnable(void);
+extern void NFC_DmaIntDisable(void);
+extern void NFC_DmaIntClearStatus(void);
+extern __u32 NFC_DmaIntGetStatus(void);
+extern __u32 NFC_DmaIntOccur(void);
 
-int NAND_AHBEnable(void)
-{
-	return clk_enable(ahb_nand_clk);
-}
-
-int NAND_ClkEnable(void)
-{
-	return clk_enable(mod_nand_clk);
-}
-
-void NAND_AHBDisable(void)
-{
-	clk_disable(ahb_nand_clk);
-}
-
-void NAND_ClkDisable(void)
-{
-	clk_disable(mod_nand_clk);
-}
-
-int NAND_SetClk(__u32 nand_clk)
-{
-	return clk_set_rate(mod_nand_clk, nand_clk*2000000);
-}
-
-int NAND_GetClk(void)
-{
-	return (clk_get_rate(mod_nand_clk)/2000000);
-}
+extern __u32 NAND_GetCurrentCH(void);
+extern __u32 NAND_SetCurrentCH(__u32 nand_index);
 
 
 #ifdef  __LINUX_SUPPORT_DMA_INT__
@@ -195,16 +174,12 @@ __s32 NAND_WaitDmaFinish(void)
 }
 
 #endif
-int  nanddma_opfn(dma_hdl_t dma_hdle, void *parg){
-	//if(op_code == SW_DMAOP_START) 
-	//	nanddma_completed_flag = 0;
-
-	//printk("buffer opfn: %d, nanddma_completed_flag: %d\n", (int)op_code, nanddma_completed_flag);
-
+int  nanddma_opfn(dma_hdl_t dma_hdle, void *parg)
+{
 	return 0;
 }
 
-dma_hdl_t NAND_RequestDMA(void)
+void* NAND_RequestDMA(void)
 {
 	dma_hdle = sw_dma_request("NAND_DMA",CHAN_DEDICATE);
 	if(dma_hdle == NULL)
@@ -214,9 +189,6 @@ dma_hdl_t NAND_RequestDMA(void)
 	}
 	printk("[NAND DMA] request dma success\n");
 	
-//	sw_dma_set_opfn(dma_hdle, nanddma_opfn);
-//	sw_dma_set_buffdone_fn(dma_hdle, nanddma_buffdone);
-
 	/* set full done callback */
 	done_cb.func = nanddma_buffdone;
 	done_cb.parg = NULL;
@@ -224,7 +196,6 @@ dma_hdl_t NAND_RequestDMA(void)
 		printk("[NAND DMA] set fulldone_cb fail\n");
 	}
 	printk("[NAND DMA] set fulldone_cb success\n");
-
 
 	return dma_hdle;
 
@@ -250,24 +221,28 @@ __s32  NAND_ReleaseDMA(void)
 }
 
 
-
-void eLIBs_CleanFlushDCacheRegion_nand(void *adr, size_t bytes)
-{
-    /* Removes cache line align operation, which have been done
-     * in __cpuc_flush_dcache_area function.
-     */
-	__cpuc_flush_dcache_area(adr, bytes/*  + (1 << 5) * 2 - 2 */);
-}
-
-
 int NAND_QueryDmaStat(void)
 {
 	return 0;
 }
 
+
+
+
+
+__s32 NAND_CleanFlushDCacheRegion(__u32 buff_addr, __u32 len)
+{
+    return 0;
+}
+
+
+
+
 __u32 NAND_DMASingleMap(__u32 rw, __u32 buff_addr, __u32 len)
 {
     __u32 mem_addr;
+//    __u32 nand_index = NAND_GetCurrentCH();
+
     
     if (rw == 1) 
     {
@@ -278,9 +253,11 @@ __u32 NAND_DMASingleMap(__u32 rw, __u32 buff_addr, __u32 len)
 	    mem_addr = (__u32)dma_map_single(NULL, (void *)buff_addr, len, DMA_FROM_DEVICE);
 	}
 
+//	tmp_dma_phy_addr[nand_index] = mem_addr;
+//	tmp_dma_len[nand_index] = len;
+	
 	return mem_addr;
 }
-
 
 __u32 NAND_DMASingleUnmap(__u32 rw, __u32 buff_addr, __u32 len)
 {
@@ -295,9 +272,8 @@ __u32 NAND_DMASingleUnmap(__u32 rw, __u32 buff_addr, __u32 len)
 	    dma_unmap_single(NULL, (dma_addr_t)mem_addr, len, DMA_FROM_DEVICE);
 	}
 	
+	return mem_addr;
 }
-
-
 
 void NAND_DMAConfigStart(int rw, unsigned int buff_addr, int len)
 {
@@ -319,7 +295,7 @@ void NAND_DMAConfigStart(int rw, unsigned int buff_addr, int len)
 		dma_config.dst_drq_type 	= D_DST_SDRAM;
 		dma_config.bconti_mode 		= false;
 		dma_config.irq_spt 		= CHAN_IRQ_FD;
-//        printk("nand read config done!");
+
 	}
 	else //write to nand
 	{
@@ -335,7 +311,6 @@ void NAND_DMAConfigStart(int rw, unsigned int buff_addr, int len)
 		dma_config.dst_drq_type 	= D_DST_NAND;
 		dma_config.bconti_mode 		= false;
 		dma_config.irq_spt 		= CHAN_IRQ_FD;
-//        printk("nand write config done!");
 	}
 
 
@@ -361,18 +336,13 @@ void NAND_DMAConfigStart(int rw, unsigned int buff_addr, int len)
 //enqueue buf
 	if(rw == 0)//read
 	{
-		//eLIBs_CleanFlushDCacheRegion_nand((void *)buff_addr, (size_t)len);
-	
-		//buff_phy_addr = virt_to_phys(buff_addr);
 		buff_phy_addr = NAND_DMASingleMap( rw,  buff_addr, len);
 		if(rw_flag != 0x1234)
 			printk("[NAND DMA ERR] rw_flag != 0x1234\n");
 		rw_flag =(__u32)NAND_READ;
 		dma_phy_address = buff_phy_addr;
 		dma_len_temp = len;
-		/* enqueue  buf */
-  //      printk("%s:%d: buff_addr=%x,len= %d\n",__FUNCTION__,__LINE__,buff_addr,len);
-//		printk("%s:%d: buff_phy_addr=%x,len= %d\n",__FUNCTION__,__LINE__,buff_phy_addr,len);
+
 		if(0 != sw_dma_enqueue(dma_hdle, 0x01c03030, buff_phy_addr, len))
 		{
 			printk("[NAND DMA] enqueue buffer fail\n");
@@ -381,9 +351,7 @@ void NAND_DMAConfigStart(int rw, unsigned int buff_addr, int len)
 	}
 	else//write
 	{
-		//eLIBs_CleanFlushDCacheRegion_nand((void *)buff_addr, (size_t)len);
 
-		//buff_phy_addr = virt_to_phys(buff_addr);
 		buff_phy_addr = NAND_DMASingleMap( rw,  buff_addr, len);
 		if(rw_flag != 0x1234)
 			printk("[NAND DMA ERR] rw_flag != 0x1234\n");
@@ -412,12 +380,20 @@ void NAND_DMAConfigStart(int rw, unsigned int buff_addr, int len)
 
 
 
+
+#ifdef __LINUX_SUPPORT_RB_INT__
 void NAND_EnRbInt(void)
 {
+	__u32 nand_index;
+
+	nand_index = NAND_GetCurrentCH();
+	if(nand_index >1)
+		printk("NAND_ClearDMAInt, nand_index error: 0x%x\n", nand_index);
+	
 	//clear interrupt
 	NFC_RbIntClearStatus();
 	
-	nandrb_ready_flag = 0;
+	nandrb_ready_flag[nand_index] = 0;
 
 	//enable interrupt
 	NFC_RbIntEnable();
@@ -428,7 +404,12 @@ void NAND_EnRbInt(void)
 
 void NAND_ClearRbInt(void)
 {
-    
+    __u32 nand_index;
+
+	nand_index = NAND_GetCurrentCH();
+	if(nand_index >1)
+		printk("NAND_ClearDMAInt, nand_index error: 0x%x\n", nand_index);
+	
 	//disable interrupt
 	NFC_RbIntDisable();;
 
@@ -440,15 +421,20 @@ void NAND_ClearRbInt(void)
 	//check rb int status
 	if(NFC_RbIntGetStatus())
 	{
-		dbg_rbint_wrn("nand  clear rb int status error in int clear \n");
+		dbg_rbint_wrn("nand %d clear rb int status error in int clear \n", nand_index);
 	}
 	
-	nandrb_ready_flag = 0;
+	nandrb_ready_flag[nand_index] = 0;
 }
 
 
 void NAND_RbInterrupt(void)
 {
+	__u32 nand_index;
+
+	nand_index = NAND_GetCurrentCH();
+	if(nand_index >1)
+		printk("NAND_ClearDMAInt, nand_index error: 0x%x\n", nand_index);
 
 	dbg_rbint("rb int occor! \n");
 	if(!NFC_RbIntGetStatus())
@@ -458,22 +444,30 @@ void NAND_RbInterrupt(void)
     
     NAND_ClearRbInt();
     
-    nandrb_ready_flag = 1;
-	wake_up( &NAND_RB_WAIT );
+    nandrb_ready_flag[nand_index] = 1;
+    if(nand_index == 0)
+		wake_up( &NAND_RB_WAIT_CH0 );
+    else if(nand_index ==1)
+    	wake_up( &NAND_RB_WAIT_CH1 );
 
 }
-
 
 __s32 NAND_WaitRbReady(void)
 {
 	__u32 rb;
+	__u32 nand_index;
+	
+	nand_index = NAND_GetCurrentCH();
+	if(nand_index >1)
+		printk("NAND_ClearDMAInt, nand_index error: 0x%x\n", nand_index);
+
 	
 	NAND_EnRbInt();
 	
 	//wait_event(NAND_RB_WAIT, nandrb_ready_flag);
 	dbg_rbint("rb wait \n");
 
-	if(nandrb_ready_flag)
+	if(nandrb_ready_flag[nand_index])
 	{
 		dbg_rbint("fast rb int\n");
 		NAND_ClearRbInt();
@@ -481,60 +475,105 @@ __s32 NAND_WaitRbReady(void)
 	}
 
 	rb=  NFC_GetRbSelect();
-	if(!rb)
+	if(NFC_GetRbStatus(rb))
 	{
-		if(NFC_GetRbStatus(rb))
-		{
-			dbg_rbint("rb %u fast ready \n", rb);
-			NAND_ClearRbInt();
-			return 0;
-		}
-	}
-	else
-	{
-		if(NFC_GetRbStatus(rb))
-		{
-			dbg_rbint("rb %u fast ready \n", rb);
-			NAND_ClearRbInt();
-			return 0;
-		}
-	}		
-	
-	
-	
-	if(wait_event_timeout(NAND_RB_WAIT, nandrb_ready_flag, 1*HZ)==0)
-	{
-		dbg_rbint_wrn("nand wait rb int time out\n");
+		dbg_rbint("rb %u fast ready \n", rb);
 		NAND_ClearRbInt();
-	
-	}
-	else
-	{	
-		dbg_rbint("nand wait rb ready ok\n");
+		return 0;
 	}
 
-	return 0;
-	
+	//printk("NAND_WaitRbReady, ch %d\n", nand_index);
+
+	if(nand_index == 0)
+	{
+		if(wait_event_timeout(NAND_RB_WAIT_CH0, nandrb_ready_flag[nand_index], 1*HZ)==0)
+		{
+			dbg_rbint_wrn("nand wait rb int time out, ch: %d\n", nand_index);
+			NAND_ClearRbInt();
+		}
+		else
+		{	NAND_ClearRbInt();
+			dbg_rbint("nand wait rb ready ok\n");
+		}
+	}
+	else if(nand_index ==1)
+	{
+		if(wait_event_timeout(NAND_RB_WAIT_CH1, nandrb_ready_flag[nand_index], 1*HZ)==0)
+		{
+			dbg_rbint_wrn("nand wait rb int time out, ch: %d\n", nand_index);
+			NAND_ClearRbInt();
+		}
+		else
+		{	NAND_ClearRbInt();
+			dbg_rbint("nand wait rb ready ok\n");
+		}
+	}
+	else
+	{
+		NAND_ClearRbInt();
+	}
+		
+    return 0;
+}
+#else
+__s32 NAND_WaitRbReady(void)
+{
+    return 0;
+}
+#endif
+
+#define NAND_CH0_INT_EN_REG    (0xf1c03000+0x8)
+#define NAND_CH1_INT_EN_REG    (0xf1c05000+0x8)
+#define NAND_CH0_INT_ST_REG    (0xf1c03000+0x4)
+#define NAND_CH1_INT_ST_REG    (0xf1c05000+0x4)
+#define NAND_RB_INT_BITMAP     (0x1)
+#define NAND_DMA_INT_BITMAP    (0x4)
+#define __NAND_REG(x)    (*(volatile unsigned int   *)(x))
+
+
+void NAND_Interrupt(__u32 nand_index)
+{
+	if(nand_index >1)
+		printk("NAND_Interrupt, nand_index error: 0x%x\n", nand_index);
+#ifdef __LINUX_NAND_SUPPORT_INT__   
+
+    //printk("nand interrupt!\n");
+#ifdef __LINUX_SUPPORT_RB_INT__    
+
+    if(nand_index == 0)
+    {
+	   	if((__NAND_REG(NAND_CH0_INT_EN_REG)&NAND_RB_INT_BITMAP)&&(__NAND_REG(NAND_CH0_INT_ST_REG)&NAND_RB_INT_BITMAP))
+			NAND_RbInterrupt();	
+    }
+
+#endif    
+
+
+#endif
 }
 
 
-#if 1
-void NAND_PIORequest(void)
+__u32 NAND_VA_TO_PA(__u32 buff_addr)
 {
-	int	cnt, i;
+    return (__u32)(__pa((void *)buff_addr));
+}
+
+void NAND_PIORequest(__u32 nand_index)
+{
+	int cnt, i;
 	script_item_u *list = NULL;
 	
-	/* ??取gpio list */
+	/* 获取gpio list */
 	cnt = script_get_pio_list("nand_para", &list);
 	if(0 == cnt) {
 		printk("get nand_para gpio list failed\n");
 		return;
 	}
-	/* ????gpio */
+	/* 申请gpio */
 	for(i = 0; i < cnt; i++)
 		if(0 != gpio_request(list[i].gpio.gpio, NULL))
 			goto end;
-	/* ????gpio list */
+	/* 配置gpio list */
 	if(0 != sw_gpio_setall_range(&list[0].gpio, cnt))
 	{
 		printk("sw_gpio_setall_range failed\n");
@@ -542,23 +581,21 @@ void NAND_PIORequest(void)
 	}
 	return;
 end:
-    printk("nand:gpio_request failed\n");
-	/* ?头?gpio */
+	printk("nand:gpio_request failed\n");
+	/* 释放gpio */
 	while(i--)
 		gpio_free(list[i].gpio.gpio);
 
-}
-#else
-void NAND_PIORequest(void){};
-#endif
 
-void NAND_PIORelease(void)
+}
+
+void NAND_PIORelease(__u32 nand_index)
 {
 
 	int	cnt, i;
 	script_item_u *list = NULL;
 	
-	/* ??取gpio list */
+	/* 获取gpio list */
 	cnt = script_get_pio_list("nand_para", &list);
 	if(0 == cnt) {
 		printk("get nand_para gpio list failed\n");
@@ -569,6 +606,8 @@ void NAND_PIORelease(void)
 		gpio_free(list[i].gpio.gpio);
 	
 }
+
+
 void NAND_Memset(void* pAddr, unsigned char value, unsigned int len)
 {
     memset(pAddr, value, len);   
@@ -581,7 +620,7 @@ void NAND_Memcpy(void* pAddr_dst, void* pAddr_src, unsigned int len)
 
 void* NAND_Malloc(unsigned int Size)
 {
-    return kmalloc(Size, GFP_KERNEL);
+     	return kmalloc(Size, GFP_KERNEL);
 }
 
 void NAND_Free(void *pAddr, unsigned int Size)
@@ -589,28 +628,115 @@ void NAND_Free(void *pAddr, unsigned int Size)
     kfree(pAddr);
 }
 
-int NAND_Print(const char * fmt, ...)
+int NAND_Print(const char *fmt, ...)
 {
+	int r = 0;
+#ifdef NAND_DEBUG
 	va_list args;
-	int r;
 
 	va_start(args, fmt);
 	r = vprintk(fmt, args);
 	va_end(args);
-	
+#endif
 	return r;
 }
 
 void *NAND_IORemap(unsigned int base_addr, unsigned int size)
 {
-    return (void *)0xf1c03000;
+    return (void *)base_addr;
 }
 
-__u32 NAND_GetIOBaseAddr(void)
+__u32 NAND_GetIOBaseAddrCH0(void)
 {
 	return 0xf1c03000;
 }
+	
+__u32 NAND_GetIOBaseAddrCH1(void)
+{
+	return 0xf1c05000;
+}
 
+DEFINE_SEMAPHORE(nand_physic_mutex);
+
+int NAND_PhysicLockInit(void)
+{
+    return 0;
+}
+
+int NAND_PhysicLock(void)
+{
+    down(&nand_physic_mutex);
+     return 0;
+}
+
+int NAND_PhysicUnLock(void)
+{
+    up(&nand_physic_mutex);
+     return 0;
+}
+
+int NAND_PhysicLockExit(void)
+{
+     return 0;
+}
+
+
+int NAND_ClkRequest(__u32 nand_index)
+{
+    printk("[NAND] nand clk request start\n");
+	ahb_nand_clk = clk_get(NULL, CLK_AHB_NAND);
+	if(!ahb_nand_clk||IS_ERR(ahb_nand_clk)) {
+		return -1;
+	}
+	mod_nand_clk = clk_get(NULL, CLK_MOD_NFC);
+		if(!mod_nand_clk||IS_ERR(mod_nand_clk)) {
+		return -1;
+	}
+	printk("[NAND] nand clk request ok!\n");
+	return 0;
+}
+
+void NAND_ClkRelease(__u32 nand_index)
+{
+	clk_put(ahb_nand_clk);
+	clk_put(mod_nand_clk);
+}
+
+
+int NAND_AHBEnable(void)
+{
+	return clk_enable(ahb_nand_clk);
+}
+
+int NAND_ClkEnable(void)
+{
+	return clk_enable(mod_nand_clk);
+}
+
+void NAND_AHBDisable(void)
+{
+	clk_disable(ahb_nand_clk);
+}
+
+void NAND_ClkDisable(void)
+{
+	clk_disable(mod_nand_clk);
+}
+
+int NAND_SetClk(__u32 nand_index, __u32 nand_clk)
+{
+	return clk_set_rate(mod_nand_clk, nand_clk*2000000);
+}
+
+int NAND_GetClk(__u32 nand_index)
+{
+	return (clk_get_rate(mod_nand_clk)/2000000);
+}
+
+int NAND_GetPlatform(void)
+{
+	return 20;	
+}
 
 int NAND_get_storagetype()
 {
@@ -630,5 +756,80 @@ int NAND_get_storagetype()
     
 }
 
+/*
+__u32  NAND_Get_nandp0(void)
+{
+    script_item_u   nandp0;
+    script_item_value_type_e  type;
 
+    type = script_get_item("nand_para", "nand_p0", &nandp0);
+    if(SCIRPT_ITEM_VALUE_TYPE_INT != type)
+    {
+        nand_dbg_err("nand type err! %d",type);
+		return 0xffffffff;
+    }
+	else
+		return nandp0.val;
+}
+
+__u32 NAND_Getidnumberctl(void)
+{
+    script_item_u   id_number_ctl;
+    script_item_value_type_e  type;
+
+    type = script_get_item("nand_para", "id_number_ctl", &id_number_ctl);
+    if(SCIRPT_ITEM_VALUE_TYPE_INT != type)
+    {
+        nand_dbg_err("nand type err! %d",type);
+		return 0x0;
+    }
+	nand_dbg_err("nand : get id_number_ctl from script,%x \n",id_number_ctl.val);
+	return id_number_ctl.val;	
+}
+*/
+
+__u32 NAND_GetNandExtPara(__u32 para_num)
+{	
+	script_item_u nand_para;
+    script_item_value_type_e type;
+	
+	if (para_num == 0) {
+	    type = script_get_item("nand_para", "nand_p0", &nand_para);
+	    if(SCIRPT_ITEM_VALUE_TYPE_INT != type)
+	    {
+	        printk("nand type err! %d", type);
+			return 0xffffffff;
+	    }
+		else
+			return nand_para.val;
+	} else if (para_num == 1) {
+	    type = script_get_item("nand_para", "nand_p1", &nand_para);
+	    if(SCIRPT_ITEM_VALUE_TYPE_INT != type)
+	    {
+	        printk("nand type err! %d", type);
+			return 0xffffffff;
+	    }
+		else
+			return nand_para.val;	
+	} else {
+		printk("NAND_GetNandExtPara: wrong para num: %d\n", para_num);
+		return 0xffffffff;
+	}
+}
+
+__u32 NAND_GetNandIDNumCtrl(void)
+{
+    script_item_u id_number_ctl;
+    script_item_value_type_e type;
+
+    type = script_get_item("nand_para", "id_number_ctl", &id_number_ctl);
+    if(SCIRPT_ITEM_VALUE_TYPE_INT != type)
+    {
+        printk("nand type err! %d", type);
+		return 0;
+    } else {
+    	printk("nand : get id_number_ctl from script,%x \n",id_number_ctl.val);	
+    	return id_number_ctl.val;
+    }	
+}
 

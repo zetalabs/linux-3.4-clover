@@ -84,6 +84,47 @@ int gen_check_sum( void *boot_buf )
 *
 ************************************************************************************************************
 */
+int gen_uboot_check_sum( void *boot_buf )
+{
+	boot_file_head_t  *head_p;
+	unsigned int           length;
+	unsigned int           *buf;
+	unsigned int            loop;
+	unsigned int            i;
+	unsigned int            sum;
+
+	head_p = (boot_file_head_t *)boot_buf;
+	length = head_p->length;
+	if( ( length & 0x3 ) != 0 )                   // must 4-byte-aligned
+		return -1;
+	buf = (unsigned int *)boot_buf;
+	head_p->check_sum = STAMP_VALUE;              // fill stamp
+	loop = length >> 2;
+    /* 计算当前文件内容的“校验和”*/
+    for( i = 0, sum = 0;  i < loop;  i++ )
+    	sum += buf[i];
+
+    /* write back check sum */
+    head_p->check_sum = sum;
+
+    return 0;
+}
+/*
+************************************************************************************************************
+*
+*                                             function
+*
+*    name          :
+*
+*    parmeters     :
+*
+*    return        :
+*
+*    note          :
+*
+*
+************************************************************************************************************
+*/
 int get_nand_para(void *boot_buf)
 {
 	boot0_file_head_t  *boot0_buf;
@@ -154,11 +195,10 @@ int get_dram_para(void *boot_buf)
 int get_nand_para_for_boot1(void *boot_buf)
 {
 	boot1_file_head_t  *boot1_buf;
-	char               *data_buf;
 	boot_nand_para_t0   *nand_para;
 
 	boot1_buf = (boot1_file_head_t *)boot_buf;
-	nand_para = (boot_nand_para_t0 *)boot1_buf->prvt_head.storage_data;
+	nand_para = (boot_nand_para_t0 *)boot1_buf->prvt_head.nand_spare_data;
 
 	nand_para->good_block_ratio = NAND_GetValidBlkRatio();
 

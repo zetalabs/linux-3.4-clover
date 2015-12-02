@@ -48,11 +48,11 @@
 #include "../src/include/nand_simple.h"
 
 #include "../nfd/nand_blk.h"
-
+#include "../nfd/mbr.h"
 
 #include "nand_test.h"
 
-#ifdef CONFIG_SUN7I_NANDFLASH_TEST     //  open nand test module
+#ifdef CONFIG_SUN4I_NANDFLASH_TEST     //  open nand test module
 
 #define NAND_TEST  "[nand_test]:"
 

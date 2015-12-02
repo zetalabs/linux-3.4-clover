@@ -22,34 +22,10 @@
 
 #define STAMP_VALUE                     0x5F0A6C39
 
-typedef struct _boot_dram_para_t
-{
-    unsigned int           dram_baseaddr;
-    unsigned int           dram_clk;
-    unsigned int           dram_type;
-    unsigned int           dram_rank_num;
-    unsigned int           dram_chip_density;
-    unsigned int           dram_io_width;
-    unsigned int		   dram_bus_width;
-    unsigned int           dram_cas;
-    unsigned int           dram_zq;
-    unsigned int           dram_odt_en;
-    unsigned int 		   dram_size;
-    unsigned int           dram_tpr0;
-    unsigned int           dram_tpr1;
-    unsigned int           dram_tpr2;
-    unsigned int           dram_tpr3;
-    unsigned int           dram_tpr4;
-    unsigned int           dram_tpr5;
-    unsigned int    	   dram_emr1;
-    unsigned int           dram_emr2;
-    unsigned int           dram_emr3;
-}boot_dram_para_t;
-
 
 typedef struct
 {
-	//unsigned int		ChannelCnt;
+	unsigned int		ChannelCnt;
 	unsigned int        ChipCnt;                            //the count of the total nand flash chips are currently connecting on the CE pin
     unsigned int       ChipConnectInfo;                    //chip connect information, bit == 1 means there is a chip connecting on the CE pin
 	unsigned int		RbCnt;
@@ -69,7 +45,7 @@ typedef struct
 	unsigned int 		good_block_ratio;					//good block ratio get from hwscan
 	unsigned int		ReadRetryType;						//the read retry type
 	unsigned int       DDRType;
-	unsigned int		Reserved[23];
+	unsigned int		Reserved[32];
 }boot_nand_para_t0;
 
 
@@ -93,7 +69,7 @@ typedef struct _boot0_private_head_t
 {
 	unsigned int            prvt_head_size;
 	char                    prvt_head_vsn[4];       // the version of boot0_private_head_t
-	boot_dram_para_t        dram_para;          // DRAM patameters for initialising dram. Original values is arbitrary,
+	unsigned int            dram_para[32];          // DRAM patameters for initialising dram. Original values is arbitrary,
 	int						uart_port;              // UART控制器编号
 	normal_gpio_cfg         uart_ctrl[2];           // UART控制器(调试打印口)数据信息
 	int                     enable_jtag;            // 1 : enable,  0 : disable

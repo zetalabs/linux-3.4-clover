@@ -43,15 +43,29 @@ extern int NAND_Print(const char *fmt, ...);
 
 #define debug NAND_Print
 
-extern __u32 NAND_GetNandVersion(void);
 extern int get_nand_para(void *boot_buf);
+extern int gen_uboot_check_sum( void *boot_buf );
 extern int gen_check_sum( void *boot_buf );
 extern int get_dram_para(void *boot_buf);
 extern int get_nand_para_for_boot1(void *boot_buf);
 
+extern int NAND_PhysicLockInit(void);
+extern int NAND_PhysicLock(void);
+extern int NAND_PhysicUnLock(void);
+extern int NAND_PhysicLockExit(void);
+
+extern __u32 NAND_GetPageSize(void);
+extern __u32 NAND_GetPageCntPerBlk(void);
+extern __u32 NAND_GetReadRetryType(void);
+extern __u32 NAND_GetVersion(__u8* nand_version);
+extern __s32 PHY_Readretry_reset(void);
+
+
+
+
 __s32  burn_boot0_1k_mode( __u32 read_retry_type, __u32 Boot0_buf )
 {
-    __u32 i, j, k,nand_version;
+    __u32 i, j, k;
 	__u32 pages_per_block;
 	__u32 copies_per_block;
     __u8  oob_buf[32];
@@ -62,12 +76,7 @@ __s32  burn_boot0_1k_mode( __u32 read_retry_type, __u32 Boot0_buf )
     for(i=0;i<32;i++)
         oob_buf[i] = 0xff;
 
-    nand_version = NAND_GetNandVersion();
-		oob_buf[0] = 0xff & nand_version;
-		oob_buf[1] = 0xff & (nand_version >> 8);
-		oob_buf[2] = 0xff & (nand_version >> 16);
-		oob_buf[3] = 0xff & (nand_version >> 24);
-		
+    NAND_GetVersion(oob_buf);
 	if((oob_buf[0]!=0xff)||(oob_buf[1]!= 0x00))
 	{
 		debug("get flash driver version error!");
@@ -125,7 +134,7 @@ error:
 
 __s32  burn_boot0_lsb_mode(__u32 read_retry_type, __u32 Boot0_buf )
 {
-    __u32 i, k,nand_version;
+    __u32 i, k;
     __u8  oob_buf[32];
     __u32 page_size;
     struct boot_physical_param  para;
@@ -136,12 +145,7 @@ __s32  burn_boot0_lsb_mode(__u32 read_retry_type, __u32 Boot0_buf )
         oob_buf[i] = 0xff;
 
 	/* get nand driver version */
-    nand_version = NAND_GetNandVersion();
-		oob_buf[0] = 0xff & nand_version;
-		oob_buf[1] = 0xff & (nand_version >> 8);
-		oob_buf[2] = 0xff & (nand_version >> 16);
-		oob_buf[3] = 0xff & (nand_version >> 24);
-		
+    NAND_GetVersion(oob_buf);
 	if((oob_buf[0]!=0xff)||(oob_buf[1]!= 0x00))
 	{
 		debug("get flash driver version error!");
@@ -243,9 +247,9 @@ error:
 int NAND_BurnBoot0(uint length, void *buf)
 {
 	__u32 read_retry_type = 0, read_retry_mode;
-	int blk_index, page_index;
-	int page_cnt_per_block;
 	void *buffer;
+	NAND_PhysicLock();
+	PHY_WaitAllRbReady();
 	debug("buf_from %x \n",buf);
 	buffer =(void *)kmalloc(length,GFP_KERNEL);
 	debug("buf_kmalloc %x \n",buffer);
@@ -258,7 +262,7 @@ int NAND_BurnBoot0(uint length, void *buf)
 	gen_check_sum(buffer);
 	debug("get check sum ok\n");
 
-
+	PHY_Readretry_reset();
 	read_retry_type = NAND_GetReadRetryType();
 	read_retry_mode = (read_retry_type>>16)&0xff;
 	if( (read_retry_type>0)&&(read_retry_mode < 0x10))
@@ -271,10 +275,14 @@ int NAND_BurnBoot0(uint length, void *buf)
 	    if( burn_boot0_1k_mode(read_retry_type, (__u32)buffer) )
 	        goto error;
 	}
-
+	debug("burn boot 0 success\n");
+	PHY_WaitAllRbReady();
+	NAND_PhysicUnLock();
 	return 0;
 
 error:
+	debug("burn boot 0 failed\n");
+	NAND_PhysicUnLock();
     return -1;
 
 }
@@ -282,7 +290,6 @@ error:
 __s32  read_boot0_1k_mode( __u32 read_retry_type, __u32 Boot0_buf )
 {
     __u32 i, j, k,m,err_flag;
-    __u32 length;
 	__u32 pages_per_block;
 	__u32 copies_per_block;
     __u8  oob_buf[32];
@@ -350,7 +357,7 @@ error:
 
 __s32  read_boot0_lsb_mode(__u32 read_retry_type, __u32 Boot0_buf )
 {
-    __u32 i, j, k,err_flag;
+    __u32 i, j,err_flag;
     __u8  oob_buf[32];
     __u32 page_size;
     struct boot_physical_param  para;
@@ -420,13 +427,14 @@ error:
 int NAND_ReadBoot0(uint length, void *buf)
 {
 	__u32 read_retry_type = 0, read_retry_mode;
-	int blk_index, page_index;
-	int page_cnt_per_block;
 	void *buffer;
 
+	PHY_WaitAllRbReady();
+
+//	NAND_PhysicLock();
 	buffer =(void *)kmalloc(1024*512,GFP_KERNEL);
 
-
+	PHY_Readretry_reset();
 	read_retry_type = NAND_GetReadRetryType();
 	read_retry_mode = (read_retry_type>>16)&0xff;
 	if( (read_retry_type>0)&&(read_retry_mode < 0x10))
@@ -443,9 +451,11 @@ int NAND_ReadBoot0(uint length, void *buf)
 	memcpy(buf,buffer,length);
 	debug("nand read boot0 ok\n");
 
+//	NAND_PhysicUnLock();
 	return 0;
 
 error:
+//	NAND_PhysicUnLock();
 	debug("nand read boot0 fail\n");
     return -1;
 
@@ -455,9 +465,9 @@ error:
 
 __s32 burn_boot1_in_one_blk(__u32 BOOT1_buf, __u32 length)
 {
-     __u32 i, j, k,nand_version;
+     __u32 i, k;
     __u8  oob_buf[32];
-    __u32 page_size, pages_per_block, pages_per_copy, page_index;
+    __u32 page_size, pages_per_block, pages_per_copy;
     struct boot_physical_param  para;
 
      debug("burn boot1 normal mode!\n");
@@ -467,11 +477,7 @@ __s32 burn_boot1_in_one_blk(__u32 BOOT1_buf, __u32 length)
         oob_buf[i] = 0xff;
 
 	/* get nand driver version */
-    nand_version = NAND_GetNandVersion();
-		oob_buf[0] = 0xff & nand_version;
-		oob_buf[1] = 0xff & (nand_version >> 8);
-		oob_buf[2] = 0xff & (nand_version >> 16);
-		oob_buf[3] = 0xff & (nand_version >> 24);
+    NAND_GetVersion(oob_buf);
 	if((oob_buf[0]!=0xff)||(oob_buf[1]!= 0x00))
 	{
 		debug("get flash driver version error!");
@@ -566,7 +572,7 @@ error:
 
 __s32 burn_boot1_in_many_blks(__u32 BOOT1_buf, __u32 length)
 {
-     __u32 i, j, k,nand_version;
+     __u32 i,  k;
     __u8  oob_buf[32];
     __u32 page_size, pages_per_block, pages_per_copy, page_index;
     struct boot_physical_param  para;
@@ -577,11 +583,7 @@ __s32 burn_boot1_in_many_blks(__u32 BOOT1_buf, __u32 length)
         oob_buf[i] = 0xff;
 
 	/* get nand driver version */
-    nand_version = NAND_GetNandVersion();
-		oob_buf[0] = 0xff & nand_version;
-		oob_buf[1] = 0xff & (nand_version >> 8);
-		oob_buf[2] = 0xff & (nand_version >> 16);
-		oob_buf[3] = 0xff & (nand_version >> 24);
+    NAND_GetVersion(oob_buf);
 	if((oob_buf[0]!=0xff)||(oob_buf[1]!= 0x00))
 	{
 		debug("get flash driver version error!");
@@ -672,18 +674,20 @@ error:
 int NAND_BurnBoot1(uint length, void *buf)
 {
 	int ret = 0;
-	int blk_index, page_index;
 	__u32 page_size, pages_per_block, block_size;
 	void *buffer;
+
+	NAND_PhysicLock();
+	PHY_WaitAllRbReady();
 
 	buffer =(void *) kmalloc(length,GFP_KERNEL);
 
 	copy_from_user(buffer, (const void*)buf, length);
 
 	get_nand_para_for_boot1(buffer);
-	gen_check_sum(buffer);
+	gen_uboot_check_sum(buffer);
 
-
+	PHY_Readretry_reset();
 
 	/* 检查 page count */
 	page_size = NAND_GetPageSize();
@@ -720,257 +724,18 @@ int NAND_BurnBoot1(uint length, void *buf)
 		ret = burn_boot1_in_many_blks((__u32)buffer, length);
 		debug("%d %d\n", __LINE__, ret);
 	}
-
+	PHY_WaitAllRbReady();
+	NAND_PhysicUnLock();
+	debug("burn boot 1 success\n");
 	return ret;
 
 error:
+	NAND_PhysicUnLock();
+	debug("burn boot 1 failed\n");
 	return -1;
 
 }
 
-__s32 read_boot1_in_one_blk(__u32 BOOT1_buf, __u32 length)
-{
-	__u32 i, j, k;
-	__u8  oob_buf[32];
-	__u32 page_size, pages_per_block, pages_per_copy, page_index;
-	struct boot_physical_param	para;
-
-	 debug("burn boot1 normal mode!\n");
-	 //debug("uboot_buf: 0x%x \n", UBOOT_buf);
-
-	for(i=0;i<32;i++)
-		oob_buf[i] = 0xff;
-
-	/* get nand driver version */
-	//NAND_GetVersion(oob_buf);
-	//if((oob_buf[0]!=0xff)||(oob_buf[1]!= 0x00))
-	//{
-	//	debug("get flash driver version error!");
-	//	goto error;
-	//}
-
-
-	/* 检查 page count */
-	page_size = NAND_GetPageSize();
-	{
-		if(page_size %1024)
-		{
-			debug("get flash page size error!");
-			goto error;
-		}
-	}
-
-	/* 检查 page count */
-	pages_per_block = NAND_GetPageCntPerBlk();
-	if(pages_per_block%64)
-	{
-		debug("get page cnt per block error %x!", pages_per_block);
-		goto error;
-	}
-
-	debug("pages_per_block: 0x%x\n", pages_per_block);
-
-	/* 计算每个备份所需page */
-	if(length%page_size)
-	{
-		debug("uboot length check error!\n");
-		goto error;
-	}
-	pages_per_copy = length/page_size;
-	if(pages_per_copy>pages_per_block)
-	{
-		debug("pages_per_copy check error!\n");
-		goto error;
-	}
-
-	debug("pages_per_copy: 0x%x\n", pages_per_copy);
-
-	/* read boot1 */
-	for( i = NAND_UBOOT_BLK_START;	i < (NAND_UBOOT_BLK_START + NAND_UBOOT_BLK_CNT);  i++ )
-	{
-		debug("boot1 %x \n", i);
-
-		/* 擦除块 */
-		para.chip  = 0;
-		para.block = i;
-
-		/* 在块中烧写boot0备份, lsb mode下，每个块只能写前4个page */
-		for( k = 0;  k < pages_per_copy;  k++ )
-		{
-			para.chip  = 0;
-			para.block = i;
-			para.page  = k;
-			para.mainbuf = (void *) (BOOT1_buf + k * page_size);
-			para.oobbuf = oob_buf;
-			//debug("burn uboot: block: 0x%x, page: 0x%x, mainbuf: 0x%x, maindata: 0x%x \n", para.block, para.page, (__u32)para.mainbuf, *((__u32 *)para.mainbuf));
-			if( PHY_SimpleRead( &para ) <0 )
-			{
-				debug("Warning. Fail in writing page %d in block %d.\n", k, i );
-				break;
-			}
-		}
-		if(k==pages_per_copy)
-			break;
-
-	}
-	
-	if(k==pages_per_copy)
-		return 0;
-
-error:
-	return -1;
-
-}
-
-__s32 read_boot1_in_many_blks(__u32 BOOT1_buf, __u32 length)
-{
-     __u32 i, j, k;
-    __u8  oob_buf[32];
-    __u32 page_size, pages_per_block, pages_per_copy, page_index;
-    struct boot_physical_param  para;
-
-     debug("burn uboot normal mode!\n");
-
-    for(i=0;i<32;i++)
-        oob_buf[i] = 0xff;
-
-	/* get nand driver version */
-    //NAND_GetVersion(oob_buf);
-	//if((oob_buf[0]!=0xff)||(oob_buf[1]!= 0x00))
-	//{
-	//	debug("get flash driver version error!");
-	//	goto error;
-	//}
-
-
-	/* 检查 page count */
-	page_size = NAND_GetPageSize();
-	{
-		if(page_size %1024)
-		{
-			debug("get flash page size error!");
-			goto error;
-		}
-	}
-
-	/* 检查 page count */
-	pages_per_block = NAND_GetPageCntPerBlk();
-	if(pages_per_block%64)
-	{
-		debug("get page cnt per block error %x!", pages_per_block);
-		goto error;
-	}
-
-	/* 计算每个备份所需page */
-	if(length%page_size)
-	{
-		debug("uboot length check error!\n");
-		goto error;
-	}
-	pages_per_copy = length/page_size;
-	if(pages_per_copy<=pages_per_block)
-	{
-		debug("pages_per_copy check error!\n");
-		goto error;
-	}
-
-
-	/* burn uboot */
-	page_index = 0;
-    for( i = NAND_UBOOT_BLK_START;  i < (NAND_UBOOT_BLK_START + NAND_UBOOT_BLK_CNT);  i++ )
-    {
-        debug("boot1 %x \n", i);
-
-		/* 擦除块 */
-		para.chip  = 0;
-		para.block = i;
-		
-     	for( k = 0;  k < pages_per_block;  k++ )
-		{
-			para.chip  = 0;
-			para.block = i;
-			para.page  = k;
-			para.mainbuf = (void *) (BOOT1_buf + page_index* page_size);
-			para.oobbuf = oob_buf;
-			if( PHY_SimpleRead( &para ) <0 )
-			{
-				debug("read boot1 error, Fail in read page %d in block %d.\n", k, i );
-   			}
-   			page_index++;
-
-   			if(page_index >= pages_per_copy)
-   				break;
-   		}
-
-   		if(page_index >= pages_per_copy)
-   			break;
-
-    }
-
-    if(page_index >= pages_per_copy)
-		return 0;
-	else
-		goto error;
-
-error:
-    return -1;
-}
-
-
-int NAND_ReadBoot1(uint length, void *buf)
-{
-	int ret = 0;
-	int blk_index, page_index;
-	__u32 page_size, pages_per_block, block_size;
-	void *buffer;
-
-	buffer =buf;
-
-	memcpy(buffer, (const void*)buf, length);
-
-	/* 检查 page count */
-	page_size = NAND_GetPageSize();
-	{
-		if(page_size %1024)
-		{
-			debug("get flash page size error!\n");
-			goto error;
-		}
-	}
-
-	/* 检查 page count */
-	pages_per_block = NAND_GetPageCntPerBlk();
-	if(pages_per_block%64)
-	{
-		debug("get page cnt per block error %x!\n", pages_per_block);
-		goto error;
-	}
-
-	block_size = page_size*pages_per_block;
-	if(length%page_size)
-	{
-		debug(" boot1 length check error!\n");
-		goto error;
-	}
-
-	if(length<=block_size)
-	{
-		ret = read_boot1_in_one_blk((__u32)buffer, length);
-		debug("%d %d\n", __LINE__, ret);
-	}
-	else
-	{
-		ret = read_boot1_in_many_blks((__u32)buffer, length);
-		debug("%d %d\n", __LINE__, ret);
-	}
-
-	return ret;
-
-error:
-	return -1;
-
-
-}
 
 
 void test_dram_para(void *buffer)
@@ -987,5 +752,4 @@ void test_dram_para(void *buffer)
 
 	return;
 }
-
 
