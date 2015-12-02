@@ -167,6 +167,7 @@ from_old_alarm_set:
 		case ANDROID_ALARM_RTC_WAKEUP:
 		case ANDROID_ALARM_RTC:
 		case ANDROID_ALARM_RTC_SHUTDOWN_WAKEUP:
+		case ANDROID_ALARM_RTC_SUSPEND_WAKEUP:
 			getnstimeofday(&tmp_time);
 			break;
 		case ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP:

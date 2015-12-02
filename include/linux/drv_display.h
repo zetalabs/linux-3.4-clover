@@ -514,10 +514,20 @@ typedef struct
 }__disp_sprite_block_para_t;
 
 typedef struct
-{
+ {
     __disp_rectsz_t screen_size;//used when the screen is not displaying on any output device(lcd/hdmi/vga/tv)
-    __disp_fb_t     output_fb;
-}__disp_capture_screen_para_t;
+    __disp_fb_t		 output_fb[3];
+		__u32					 buffer_num; //1, 2, 3
+		__u32					 mode;				//0: single, 1:continue
+		__u32 				 fps;				 //0: fps of lcd;  1:1/2	fps of lcd
+		__disp_rect_t   capture_window;
+		__disp_rect_t   output_window;
+
+		__u32 				 cur_buffer_id;//no need to care about it
+		__u32					 capture_request;//0: no request, 1: capture request
+		__s32 				 scaler_id;
+		__u32          got_frame;
+ }__disp_capture_screen_para_t;
 
 typedef struct
 {
@@ -795,6 +805,7 @@ typedef enum tag_DISP_CMD
     DISP_CMD_SET_ENHANCE_WINDOW             = 0X2f,
     DISP_CMD_GET_ENHANCE_WINDOW             = 0X30,
     DISP_CMD_SET_OVL_MODE                   = 0x31,
+    DISP_CMD_CAPTURE_SCREEN_STOP            = 0x33,//for continue mode
 
     //----layer----
     DISP_CMD_LAYER_REQUEST                  = 0x40,

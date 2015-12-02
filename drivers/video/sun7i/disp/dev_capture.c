@@ -56,7 +56,7 @@ __s32 capture_event(__u32 sel)
 	return 0;
 }
 
-static int __init capture_probe(struct platform_device *pdev)
+static int capture_probe(struct platform_device *pdev)
 {
 	pr_info("[DISP]capture_probe\n");
 

@@ -397,7 +397,7 @@ static int hotplug_pm_notify(struct notifier_block *nb, unsigned long event, voi
     }
 
     if (num_online_cpus() != 1){
-        printk("event:%d num_online_cpus:%d\n", event, num_online_cpus());
+        printk("event:%lu num_online_cpus:%d\n", event, num_online_cpus());
         return NOTIFY_BAD;
     }
     return NOTIFY_OK;
