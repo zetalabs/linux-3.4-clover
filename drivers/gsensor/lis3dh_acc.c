@@ -867,7 +867,7 @@ static ssize_t attr_set_polling_rate(struct device *dev,
 		return -EINVAL;
 	if (!interval_ms)
 		return -EINVAL;
-	interval_ms = max((unsigned int)interval_ms,acc->pdata->min_interval);
+	interval_ms = min((unsigned int)interval_ms,acc->pdata->min_interval);
 	mutex_lock(&acc->lock);
 	acc->pdata->poll_interval = interval_ms;
 	lis3dh_acc_update_odr(acc, interval_ms);

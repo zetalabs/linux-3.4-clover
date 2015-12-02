@@ -64,8 +64,8 @@
 #define POLL_STOP_TIME          200 /* if sensor is standby ,set POLL_STOP_TIME to slow down the poll */ 
 
 
-#define INPUT_FUZZ              32
-#define INPUT_FLAT              32
+#define INPUT_FUZZ              2
+#define INPUT_FLAT              2
 #define MODE_CHANGE_DELAY_MS    100
 
 #define MMA865X_STATUS_ZYXDR    0x08

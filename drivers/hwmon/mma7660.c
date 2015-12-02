@@ -108,8 +108,9 @@ static struct input_polled_dev *mma7660_idev;
 
 /* Addresses to scan */
 static const unsigned short normal_i2c[2] = {MMA7660ADDRESS, I2C_CLIENT_END};
-static __u32 twi_id = 0;
-
+static struct sensor_config_info config_info = {
+	.input_type = GSENSOR_TYPE,
+};
 
 static u32 debug_mask = 0x0;
 #define dprintk(level_mask, fmt, arg...)	if (unlikely(debug_mask & level_mask)) \
@@ -129,54 +130,6 @@ static void mma7660_early_suspend(struct early_suspend *h);
 static void mma7660_late_resume(struct early_suspend *h);
 #endif
 
-/**
- * gsensor_fetch_sysconfig_para - get config info from sysconfig.fex file.
- * return value:  
- *                    = 0; success;
- *                    < 0; err
- */
-static int gsensor_fetch_sysconfig_para(void)
-{
-
-	int ret = -1;
-	int device_used = -1;
-	script_item_u	val;
-	script_item_value_type_e  type;	
-			
-	dprintk(DEBUG_INIT, "========%s===================\n", __func__);
-		
-	type = script_get_item("gsensor_para", "gsensor_used", &val);
-	 
-	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
-		pr_err("%s: type err  device_used = %d. \n", __func__, val.val);
-		goto script_get_err;
-	}
-	device_used = val.val;
-		
-	if (1 == device_used) {
-		type = script_get_item("gsensor_para", "gsensor_twi_id", &val); 
-		if(SCIRPT_ITEM_VALUE_TYPE_INT != type){
-			pr_err("%s: type err twi_id = %d. \n", __func__, val.val);
-			goto script_get_err;
-		}
-		twi_id = val.val;
-			
-		dprintk(DEBUG_INIT, "%s: twi_id is %d. \n", __func__, twi_id);
-	
-		ret = 0;
-			
-	} else {
-		pr_err("%s: gsensor_unused. \n",  __func__);
-		ret = -1;
-	}
-	
-	return ret;
-	
-script_get_err:
-	pr_notice("=========script_get_err============\n");
-	return ret;
-	
-	}
 
 //Function as i2c_master_send, and return 1 if operation is successful. 
 static int i2c_write_bytes(struct i2c_client *client, uint8_t *data, uint16_t len)
@@ -222,7 +175,7 @@ static int gsensor_detect(struct i2c_client *client, struct i2c_board_info *info
         if (!i2c_check_functionality(adapter, I2C_FUNC_SMBUS_BYTE_DATA))
                 return -ENODEV;
     
-	if(twi_id == adapter->nr){
+	if(config_info.twi_id == adapter->nr){
             dprintk(DEBUG_INIT, "%s: addr= %x\n",__func__,client->addr);
 
             ret = gsensor_i2c_test(client);
@@ -751,12 +704,17 @@ static int __init mma7660_init(void)
 	int ret = -1;
 	printk("======%s=========. \n", __func__);
 	
-	if(gsensor_fetch_sysconfig_para()){
-		printk("%s:gsensor_fetch_sysconfig_para  err.\n", __func__);
+	if(input_fetch_sysconfig_para(&(config_info.input_type))){
+		printk("%s: err.\n", __func__);
 		return -1;
 	}
 	
-
+	if(config_info.sensor_used == 0){
+		printk("*** used set to 0 !\n");
+		printk("*** if use sensor,please put the sys_config.fex gsensor_used set to 1. \n");
+		return 0;
+	}
+	
 	mma7660_driver.detect = gsensor_detect;
 
 

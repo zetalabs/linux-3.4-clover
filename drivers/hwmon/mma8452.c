@@ -62,8 +62,8 @@
 
 #define POLL_INTERVAL_MAX       500
 #define POLL_INTERVAL           100
-#define INPUT_FUZZ              32
-#define INPUT_FLAT              32
+#define INPUT_FUZZ              2
+#define INPUT_FLAT              2
 #define MODE_CHANGE_DELAY_MS    100
 #define MMA8452_I2C_ADDR0       0x1C
 #define MMA8452_I2C_ADDR1       0x1D

@@ -890,7 +890,7 @@ Output:
 static s8 gtp_request_input_dev(struct goodix_ts_data *ts)
 {
         s8 ret = -1;
-        s8 phys[32];
+        //s8 phys[32];
 #if GTP_HAVE_TOUCH_KEY
         u8 index = 0;
 #endif
@@ -926,9 +926,10 @@ static s8 gtp_request_input_dev(struct goodix_ts_data *ts)
         input_set_abs_params(ts->input_dev, ABS_MT_TRACKING_ID, 0, 255, 0, 0);
 	set_bit(INPUT_PROP_DIRECT, ts->input_dev->propbit);
     
-	sprintf(phys, "input/ts");
+        //sprintf(phys, "input/ts");
         ts->input_dev->name = goodix_ts_name;
-        ts->input_dev->phys = phys;
+        //ts->input_dev->phys = phys;
+        ts->input_dev->phys = "input/goodix-ts";
         ts->input_dev->id.bustype = BUS_I2C;
         ts->input_dev->id.vendor = 0xDEAD;
         ts->input_dev->id.product = 0xBEEF;

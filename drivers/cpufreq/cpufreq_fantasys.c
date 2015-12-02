@@ -1131,8 +1131,8 @@ static int fantasys_dram_notify(struct notifier_block *nb, unsigned long event, 
 
     if (event == DRAMFREQ_NOTIFY_PREPARE) {
         cancel_delayed_work_sync(&dbs_info->work);
-        if (policy->cur != 720000){
-            __cpufreq_driver_target(dbs_info->cur_policy, 720000, CPUFREQ_RELATION_H);
+        if (policy->cur != 912000){
+            __cpufreq_driver_target(dbs_info->cur_policy, 912000, CPUFREQ_RELATION_H);
         }
     } else if (event == DRAMFREQ_NOTIFY_DONE) {
         start_powernow(dbs_tuners_ins.powernow);

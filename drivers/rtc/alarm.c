@@ -515,7 +515,7 @@ static void alarm_shutdown(struct platform_device *pdev)
 			hrtimer_get_expires(&wakeup_queue->timer)),
 			rtc_delta).tv_sec;
 		/*when the alarm happens, system starts ahead 60 seconds*/
-		rtc_alarm_time = rtc_alarm_time - 60;
+		rtc_alarm_time = rtc_alarm_time - 90;
 		rtc_time_to_tm(rtc_alarm_time, &rtc_alarm.time);
 
 		rtc_alarm.enabled = 1;
@@ -610,6 +610,7 @@ static int __init alarm_late_init(void)
 {
 	unsigned long   flags;
 	struct timespec tmp_time, system_time;
+	ktime_t tmp_delta;
 
 	/* this needs to run after the rtc is read at boot */
 	spin_lock_irqsave(&alarm_slock, flags);
@@ -619,9 +620,16 @@ static int __init alarm_late_init(void)
 	 */
 	getnstimeofday(&tmp_time);
 	ktime_get_ts(&system_time);
-	alarms[ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP].delta =
-		alarms[ANDROID_ALARM_ELAPSED_REALTIME].delta =
-			timespec_to_ktime(timespec_sub(tmp_time, system_time));
+
+	tmp_delta = timespec_to_ktime(timespec_sub(tmp_time, system_time));
+	alarms[ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP].delta = tmp_delta;
+	alarms[ANDROID_ALARM_ELAPSED_REALTIME].delta = tmp_delta;
+	alarms[ANDROID_ALARM_RTC_SHUTDOWN_WAKEUP].delta = tmp_delta;
+	alarms[ANDROID_ALARM_RTC_SUSPEND_WAKEUP].delta = tmp_delta;
+
+	//alarms[ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP].delta =
+	//	alarms[ANDROID_ALARM_ELAPSED_REALTIME].delta =
+	//		timespec_to_ktime(timespec_sub(tmp_time, system_time));
 
 	spin_unlock_irqrestore(&alarm_slock, flags);
 	return 0;

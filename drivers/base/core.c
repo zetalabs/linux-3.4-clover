@@ -26,9 +26,6 @@
 #include <linux/async.h>
 #include <linux/pm_runtime.h>
 
-#include <linux/ktime.h>
-extern ktime_t ktime_get(void);
-
 #include "base.h"
 #include "power/power.h"
 
@@ -1804,9 +1801,6 @@ EXPORT_SYMBOL_GPL(device_move);
 void device_shutdown(void)
 {
 	struct device *dev;
-	ktime_t calltime, delta, rettime;
-
-	calltime = ktime_get();
 
 	spin_lock(&devices_kset->list_lock);
 	/*
@@ -1842,10 +1836,6 @@ void device_shutdown(void)
 	}
 	spin_unlock(&devices_kset->list_lock);
 	async_synchronize_full();
-
-	rettime = ktime_get();
-	delta = ktime_sub(rettime, calltime);
-    pr_err("devices shutdown time: %lldms\n", ktime_to_ms(delta));
 }
 
 /*

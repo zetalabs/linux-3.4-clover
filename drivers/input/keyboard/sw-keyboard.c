@@ -104,13 +104,14 @@
 
 static unsigned char keypad_mapindex[64] =
 {
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, //0-14
-    1,1,1,1,1,1,1,1,1,1,1,         //15-25
-    2,2,2,2,2,2,2,2,2,2,           //26-35
-    3,3,3,3,3,3,3,                 //36-42	/*Amended in May 14, 2014 added the upper and lower control author Wang Bin*/
-    4,4,4,4,4,4,                   //43-48
-    5,5,5,5,5,5,5,5,               //49-56
-    6,6,6,6,6,6,6                  //57-63
+    0,0,0,0,0,0,0,0,               //key 1, 8???? 0-7
+    1,1,1,1,1,1,1,                 //key 2, 7???? 8-14
+    2,2,2,2,2,2,2,                 //key 3, 7???? 15-21
+    3,3,3,3,3,3,                   //key 4, 6???? 22-27
+    4,4,4,4,4,4,                   //key 5, 6???? 28-33
+    5,5,5,5,5,5,                   //key 6, 6???? 34-39
+    6,6,6,6,6,6,6,6,6,6,           //key 7, 10????40-49
+    7,7,7,7,7,7,7,7,7,7,7,7,7,7    //key 8, 17????50-63
 };
 #endif
                         
@@ -118,33 +119,33 @@ static unsigned char keypad_mapindex[64] =
 //0.15V mode
 static unsigned char keypad_mapindex[64] =
 {
-	0,0,0,                        //key1 0-2
-	1,1,1,1,1,                    //key2 3-7
-	2,2,2,2,2,                    //key3 8-12
-	3,3,3,3,                      //key4 13-16
-	4,4,4,4,4,                    //key5 17-21
-	5,5,5,5,5,                    //key6 22-26
-	6,6,6,6,6,                    //key7 27-31
-	7,7,7,7,                      //key8 32-35
-	8,8,8,8,8,                    //key9 36-40
-	9,9,9,9,9,                    //key10 41-45
-	10,10,10,10,                  //key11 46-49
-	11,11,11,11,                  //key12 50-53
-	12,12,12,12,12,12,12,12,12,12 //key13 54-63
+	0,0,0,                      //key1
+	1,1,1,1,1,                  //key2
+	2,2,2,2,2,
+	3,3,3,3,
+	4,4,4,4,4,
+	5,5,5,5,5,
+	6,6,6,6,6,
+	7,7,7,7,
+	8,8,8,8,8,
+	9,9,9,9,9,
+	10,10,10,10,
+	11,11,11,11,
+	12,12,12,12,12,12,12,12,12,12 //key13
 };
 #endif
 
 #ifdef EVB
 static unsigned int sw_scankeycodes[KEY_MAX_CNT]=
 {
-	[0 ] = KEY_VOLUMEUP,     //vol ++	KEY_VOLUMEUP
-	[1 ] = KEY_VOLUMEDOWN,     //vol--  KEY_VOLUMEDOWN
-	[2 ] = KEY_MENU, 		//menu      KEY_MENU
-	[3 ] = KEY_UP,   //search   
-	[4 ] = KEY_DOWN, 			//home	KEY_BACK
-	[5 ] = KEY_ESC,		//esc	KEY_ESC
-	[6 ] = KEY_ENTER,    //enter    KEY_ENTER
-  	[7 ] = KEY_RESERVED,
+	[0 ] = KEY_VOLUMEUP,       
+	[1 ] = KEY_VOLUMEDOWN,      
+	[2 ] = KEY_MENU,         
+	[3 ] = KEY_SEARCH,       
+	[4 ] = KEY_HOME,   
+	[5 ] = KEY_ESC, 
+	[6 ] = KEY_ENTER,        
+	[7 ] = KEY_RESERVED,
 	[8 ] = KEY_RESERVED,
 	[9 ] = KEY_RESERVED,
 	[10] = KEY_RESERVED,
