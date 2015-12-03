@@ -3,34 +3,16 @@
  * Contents are wifi-specific, used by any kernel or app-level
  * software that might want wifi things as it grows.
  *
- * Copyright (C) 1999-2012, Broadcom Corporation
- * 
- *      Unless you and Broadcom execute a separate written software license
- * agreement governing use of this software, this software is licensed to you
- * under the terms of the GNU General Public License version 2 (the "GPL"),
- * available at http://www.broadcom.com/licenses/GPLv2.php, with the
- * following added to such license:
- * 
- *      As a special exception, the copyright holders of this software give you
- * permission to link this software with independent modules, and to copy and
- * distribute the resulting executable under terms of your choice, provided that
- * you also meet, for each linked independent module, the terms and conditions of
- * the license of that module.  An independent module is a module which is not
- * derived from this software.  The special exception does not apply to any
- * modifications of the software.
- * 
- *      Notwithstanding the above, under no circumstances may you combine this
- * software in any way with any other Broadcom software provided under a license
- * other than the GPL, without Broadcom's express prior written consent.
+ * $Copyright Open Broadcom Corporation$
  * $Id: bcmwifi_channels.c 309193 2012-01-19 00:03:57Z $
  */
 
 #include <bcm_cfg.h>
 #include <typedefs.h>
+#include <bcmutils.h>
 
 #ifdef BCMDRIVER
 #include <osl.h>
-#include <bcmutils.h>
 #define strtoul(nptr, endptr, base) bcm_strtoul((nptr), (endptr), (base))
 #define tolower(c) (bcm_isupper((c)) ? ((c) + 'a' - 'A') : (c))
 #else
@@ -560,7 +542,7 @@ wf_chspec_aton(const char *a)
 		return 0;
 
 	/* if we are looking at a 'g', then the first number was a band */
-	c = tolower(a[0]);
+	c = tolower((int)a[0]);
 	if (c == 'g') {
 		a ++; /* consume the char */
 
@@ -576,7 +558,7 @@ wf_chspec_aton(const char *a)
 		if (!read_uint(&a, &ctl_ch))
 			return 0;
 
-		c = tolower(a[0]);
+		c = tolower((int)a[0]);
 	}
 	else {
 		/* first number is channel, use default for band */
@@ -626,7 +608,7 @@ wf_chspec_aton(const char *a)
 	 * or '+80' if bw = 80, to make '80+80' bw.
 	 */
 
-	c = tolower(a[0]);
+	c = tolower((int)a[0]);
 
 	/* if we have a 2g/40 channel, we should have a l/u spec now */
 	if (chspec_band == WL_CHANSPEC_BAND_2G && bw == 40) {
@@ -912,6 +894,9 @@ wf_chspec_valid(chanspec_t chanspec)
 
 				if (i == num_ch) {
 					/* check for legacy JP channels on failure */
+					if (chspec_ch == 165)
+						i = 0;
+					else
 					if (chspec_ch == 34 || chspec_ch == 38 ||
 					    chspec_ch == 42 || chspec_ch == 46)
 						i = 0;
@@ -1176,4 +1161,100 @@ wf_channel2mhz(uint ch, uint start_factor)
 		freq = ch * 5 + start_factor / 2;
 
 	return freq;
+}
+
+
+static const struct chan_info {
+	uint16	chan;	
+	uint16	freq;	
+} chan_info[] = {
+	
+		{1,	2412},
+		{2,	2417},
+		{3,	2422},
+		{4,	2427},
+		{5,	2432},
+		{6,	2437},
+		{7,	2442},
+		{8,	2447},
+		{9,	2452},
+		{10,	2457},
+	{11,	2462},
+	{12,	2467},
+	{13,	2472},
+	{14,	2484},
+
+#ifdef BAND5G
+
+	{34,	5170},
+	{38,	5190},
+	{42,	5210},
+	{46,	5230},
+
+
+	{36,	5180},
+	{40,	5200},
+	{44,	5220},
+	{48,	5240},
+	{52,	5260},
+	{56,	5280},
+	{60,	5300},
+	{64,	5320},
+
+
+	{100,	5500},
+	{104,	5520},
+	{108,	5540},
+	{112,	5560},
+	{116,	5580},
+	{120,	5600},
+	{124,	5620},
+	{128,	5640},
+	{132,	5660},
+	{136,	5680},
+	{140,	5700},
+
+
+	{149,	5745},
+	{153,	5765},
+	{157,	5785},
+	{161,	5805},
+	{165,	5825},
+
+
+	{184,	4920},
+	{188,	4940},
+	{192,	4960},
+	{196,	4980},
+	{200,	5000},
+	{204,	5020},
+	{208,	5040},
+	{212,	5060},
+	{216,	5080}
+#endif 
+};
+
+
+uint
+wf_freq2channel(uint freq)
+{
+	uint i;
+
+	for (i = 0; i < ARRAYSIZE(chan_info); i++) {
+		if (chan_info[i].freq == freq)
+			return (chan_info[i].chan);
+	}
+	return (0);
+}
+
+
+uint
+wf_channel2freq(uint channel)
+{
+	uint i;
+
+	for (i = 0; i < ARRAYSIZE(chan_info); i++)
+		if (chan_info[i].chan == channel)
+			return (chan_info[i].freq);
+	return (0);
 }

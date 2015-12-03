@@ -3,27 +3,9 @@
  *     export functions to client drivers
  *     abstract OS and BUS specific details of SDIO
  *
- * Copyright (C) 1999-2012, Broadcom Corporation
- * 
- *      Unless you and Broadcom execute a separate written software license
- * agreement governing use of this software, this software is licensed to you
- * under the terms of the GNU General Public License version 2 (the "GPL"),
- * available at http://www.broadcom.com/licenses/GPLv2.php, with the
- * following added to such license:
- * 
- *      As a special exception, the copyright holders of this software give you
- * permission to link this software with independent modules, and to copy and
- * distribute the resulting executable under terms of your choice, provided that
- * you also meet, for each linked independent module, the terms and conditions of
- * the license of that module.  An independent module is a module which is not
- * derived from this software.  The special exception does not apply to any
- * modifications of the software.
- * 
- *      Notwithstanding the above, under no circumstances may you combine this
- * software in any way with any other Broadcom software provided under a license
- * other than the GPL, without Broadcom's express prior written consent.
+ * $ Copyright Open License Broadcom Corporation $
  *
- * $Id: bcmsdh.h 347614 2012-07-27 10:24:51Z $
+ * $Id: bcmsdh.h 414953 2013-07-26 17:36:27Z $
  */
 
 /**
@@ -55,13 +37,7 @@ typedef void (*bcmsdh_cb_fn_t)(void *);
  *    implementation may maintain a single "default" handle (e.g. the first or
  *    most recent one) to enable single-instance implementations to pass NULL.
  */
-
-#if 0 && (NDISVER >= 0x0630) && 1
-extern bcmsdh_info_t *bcmsdh_attach(osl_t *osh, void *cfghdl,
-	void **regsva, uint irq, shared_info_t *sh);
-#else
 extern bcmsdh_info_t *bcmsdh_attach(osl_t *osh, void *cfghdl, void **regsva, uint irq);
-#endif
 
 /* Detach - freeup resources allocated in attach */
 extern int bcmsdh_detach(osl_t *osh, void *sdh);
@@ -145,7 +121,7 @@ extern int bcmsdh_recv_buf(void *sdh, uint32 addr, uint fn, uint flags,
                            uint8 *buf, uint nbytes, void *pkt,
                            bcmsdh_cmplt_fn_t complete_fn, void *handle);
 
-extern void bcmsdh_glom_post(void *sdh, uint8 *frame, uint len);
+extern void bcmsdh_glom_post(void *sdh, uint8 *frame, void *pkt, uint len);
 extern void bcmsdh_glom_clear(void *sdh);
 extern uint bcmsdh_set_mode(void *sdh, uint mode);
 extern bool bcmsdh_glom_enabled(void);
@@ -221,9 +197,7 @@ extern int bcmsdh_set_drvdata(void * dhdp);
 extern int bcmsdh_register_oob_intr(void * dhdp);
 extern void bcmsdh_unregister_oob_intr(void);
 extern void bcmsdh_oob_intr_set(bool enable);
-#endif
-#if defined(HW_OOB)
-void bcmsdh_config_hw_oob_intr(bcmsdh_info_t *sdh, uint chip);
+extern bool bcmsdh_is_oob_intr_registered(void);
 #endif
 
 /* Function to pass device-status bits to DHD. */

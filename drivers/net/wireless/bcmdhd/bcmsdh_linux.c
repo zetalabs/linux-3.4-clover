@@ -1,27 +1,9 @@
 /*
  * SDIO access interface for drivers - linux specific (pci only)
  *
- * Copyright (C) 1999-2012, Broadcom Corporation
- * 
- *      Unless you and Broadcom execute a separate written software license
- * agreement governing use of this software, this software is licensed to you
- * under the terms of the GNU General Public License version 2 (the "GPL"),
- * available at http://www.broadcom.com/licenses/GPLv2.php, with the
- * following added to such license:
- * 
- *      As a special exception, the copyright holders of this software give you
- * permission to link this software with independent modules, and to copy and
- * distribute the resulting executable under terms of your choice, provided that
- * you also meet, for each linked independent module, the terms and conditions of
- * the license of that module.  An independent module is a module which is not
- * derived from this software.  The special exception does not apply to any
- * modifications of the software.
- * 
- *      Notwithstanding the above, under no circumstances may you combine this
- * software in any way with any other Broadcom software provided under a license
- * other than the GPL, without Broadcom's express prior written consent.
+ * $Copyright Open Broadcom Corporation$
  *
- * $Id: bcmsdh_linux.c 373359 2012-12-07 06:36:37Z $
+ * $Id: bcmsdh_linux.c 414953 2013-07-26 17:36:27Z $
  */
 
 /**
@@ -50,7 +32,6 @@ extern void dhdsdio_isr(void * args);
 #include <mach/gpio.h>
 #include <mach/sys_config.h>
 #endif 
-
 
 /**
  * SDIO Host Controller info
@@ -170,7 +151,7 @@ int bcmsdh_probe(struct device *dev)
 	pdev = to_platform_device(dev);
 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	irq = platform_get_irq(pdev, 0);
-	if (!r || irq == NO_IRQ)
+	if (!r || irq < 0)
 		return -ENXIO;
 #endif 
 
@@ -184,13 +165,9 @@ int bcmsdh_probe(struct device *dev)
 
 	/* Get customer specific OOB IRQ parametres: IRQ number as IRQ type */
 	irq = dhd_customer_oob_irq_map(&irq_flags);
-#if	defined(CONFIG_ARCH_RHEA) || defined(CONFIG_ARCH_CAPRI)
-	/* Do not disable this IRQ during suspend */
-	irq_flags |= IRQF_NO_SUSPEND;
-#endif /* defined(CONFIG_ARCH_RHEA) || defined(CONFIG_ARCH_CAPRI) */
 	if  (irq < 0) {
 		SDLX_MSG(("%s: Host irq is not defined\n", __FUNCTION__));
-		return 1;
+		goto err;
 	}
 #endif 
 	/* allocate SDIO Host Controller state info */
@@ -411,6 +388,10 @@ bcmsdh_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	/* match this pci device with what we support */
 	/* we can't solely rely on this to believe it is our SDIO Host Controller! */
 	if (!bcmsdh_chipmatch(pdev->vendor, pdev->device)) {
+		if (pdev->vendor == VENDOR_BROADCOM) {
+			SDLX_MSG(("%s: Unknown Broadcom device (vendor: %#x, device: %#x).\n",
+				__FUNCTION__, pdev->vendor, pdev->device));
+		}
 		return -ENODEV;
 	}
 
@@ -582,7 +563,7 @@ bcmsdh_unregister(void)
 
 int bcmsdh_set_drvdata(void * dhdp)
 {
-	SDLX_MSG(("%s: Enter \n", __FUNCTION__));
+	SDLX_MSG(("%s: Enter\n", __FUNCTION__));
 
 	dev_set_drvdata(sdhcinfo->dev, dhdp);
 
@@ -728,6 +709,14 @@ void bcmsdh_unregister_oob_intr(void)
 		sdhcinfo->oob_irq_registered = FALSE;
 	}
 }
+
+bool bcmsdh_is_oob_intr_registered(void)
+{
+	if (sdhcinfo)
+		return sdhcinfo->oob_irq_registered;
+	else
+		return FALSE;
+}
 #endif 
 
 #if defined(BCMLXSDMMC)
@@ -765,6 +754,10 @@ module_param(sd_f2_blocksize, int, 0);
 #ifdef BCMSDIOH_STD
 extern int sd_uhsimode;
 module_param(sd_uhsimode, int, 0);
+extern uint sd_tuning_period;
+module_param(sd_tuning_period, uint, 0);
+extern int sd_delay_value;
+module_param(sd_delay_value, uint, 0);
 #endif
 
 #ifdef BCMSDIOH_TXGLOM
