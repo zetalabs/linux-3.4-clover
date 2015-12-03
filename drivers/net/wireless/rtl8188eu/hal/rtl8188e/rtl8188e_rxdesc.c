@@ -19,8 +19,6 @@
  ******************************************************************************/
 #define _RTL8188E_REDESC_C_
 
-#include <drv_conf.h>
-#include <osdep_service.h>
 #include <drv_types.h>
 #include <rtl8188e_hal.h>
 
@@ -227,8 +225,7 @@ void update_recvframe_attrib_88e(
 		pattrib->mfrag = (u8)((report.rxdw1 >> 27) & 0x1);//(u8)prxreport->mf;
 		pattrib->mdata = (u8)((report.rxdw1 >> 26) & 0x1);//(u8)prxreport->md;
 
-		pattrib->mcs_rate = (u8)(report.rxdw3 & 0x3f);//(u8)prxreport->rxmcs;
-		pattrib->rxht = (u8)((report.rxdw3 >> 6) & 0x1);//(u8)prxreport->rxht;
+		pattrib->data_rate = (u8)(report.rxdw3 & 0x3f);//(u8)prxreport->rxmcs;
 		
 		pattrib->icv_err = (u8)((report.rxdw0 >> 15) & 0x1);//(u8)prxreport->icverr;
 		pattrib->shift_sz = (u8)((report.rxdw0 >> 24) & 0x3);
@@ -273,7 +270,7 @@ void update_recvframe_phyinfo_88e(
 	PODM_PHY_INFO_T 	pPHYInfo  = (PODM_PHY_INFO_T)(&pattrib->phy_info);
 	u8					*wlanhdr;
 	ODM_PACKET_INFO_T	pkt_info;
-	u8 *sa;
+	u8 *sa = NULL;
 	struct sta_priv *pstapriv;
 	struct sta_info *psta;
 	//_irqL		irqL;
@@ -316,7 +313,7 @@ void update_recvframe_phyinfo_88e(
 		pkt_info.StationID = psta->mac_id;		
 		//DBG_8192C("%s ==> StationID(%d)\n",__FUNCTION__,pkt_info.StationID);
 	}			
-	pkt_info.Rate = pattrib->mcs_rate;	
+	pkt_info.DataRate = pattrib->data_rate;	
 	//rtl8188e_query_rx_phy_status(precvframe, pphy_status);
 
 	//_enter_critical_bh(&pHalData->odm_stainfo_lock, &irqL);	

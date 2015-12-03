@@ -96,11 +96,7 @@ s32 rtl8188es_init_recv_priv(PADAPTER padapter)
 			SIZE_PTR tmpaddr=0;
 			SIZE_PTR alignment=0;
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)) // http://www.mail-archive.com/netdev@vger.kernel.org/msg17214.html
-			precvbuf->pskb = __dev_alloc_skb(MAX_RECVBUF_SZ + RECVBUFF_ALIGN_SZ, GFP_KERNEL);
-#else
-			precvbuf->pskb = __netdev_alloc_skb(padapter->pnetdev, MAX_RECVBUF_SZ + RECVBUFF_ALIGN_SZ, GFP_KERNEL);
-#endif
+			precvbuf->pskb = rtw_skb_alloc(MAX_RECVBUF_SZ + RECVBUFF_ALIGN_SZ);
 
 			if(precvbuf->pskb)
 			{
@@ -259,20 +255,20 @@ static s32 pre_recv_entry(union recv_frame *precvframe, struct recv_buf	*precvbu
 		//If skb->len is zero, skb_copy() will not copy data from original skb.
 		skb_put(precvframe->u.hdr.pkt, pattrib->pkt_len);
 
-		pkt_copy = skb_copy( precvframe->u.hdr.pkt, GFP_ATOMIC);
+		pkt_copy = rtw_skb_copy( precvframe->u.hdr.pkt);
 		if (pkt_copy == NULL)
 		{
 			if((pattrib->mfrag == 1)&&(pattrib->frag_num == 0))
 			{				
-				DBG_8192C("pre_recv_entry(): skb_copy fail , drop frag frame \n");
+				DBG_8192C("pre_recv_entry(): rtw_skb_copy fail , drop frag frame \n");
 				rtw_free_recvframe(precvframe, &precvpriv->free_recv_queue);
 				return ret;
 			}
 
-			pkt_copy = skb_clone( precvframe->u.hdr.pkt, GFP_ATOMIC);
+			pkt_copy = rtw_skb_clone( precvframe->u.hdr.pkt);
 			if(pkt_copy == NULL)
 			{
-				DBG_8192C("pre_recv_entry(): skb_clone fail , drop frame\n");
+				DBG_8192C("pre_recv_entry(): rtw_skb_clone fail , drop frame\n");
 				rtw_free_recvframe(precvframe, &precvpriv->free_recv_queue);
 				return ret;
 			}
@@ -391,6 +387,17 @@ static void rtl8188es_recv_tasklet(void *priv)
 
 			if ((pattrib->crc_err) || (pattrib->icv_err))
 			{
+			#ifdef CONFIG_MP_INCLUDED
+				if (padapter->registrypriv.mp_mode == 1)
+				{
+					if ((check_fwstate(&padapter->mlmepriv, WIFI_MP_STATE) == _TRUE))//&&(padapter->mppriv.check_mp_pkt == 0))
+					{
+						if (pattrib->crc_err == 1)
+							padapter->mppriv.rx_crcerrpktcount++;
+					}
+				}
+			#endif
+			
 				DBG_8192C("%s: crc_err=%d icv_err=%d, skip!\n", __FUNCTION__, pattrib->crc_err, pattrib->icv_err);
 				rtw_free_recvframe(precvframe, &precvpriv->free_recv_queue);
 			}
@@ -425,11 +432,8 @@ static void rtl8188es_recv_tasklet(void *priv)
 					alloc_sz += 14;
 				}
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)) // http://www.mail-archive.com/netdev@vger.kernel.org/msg17214.html
-				pkt_copy = dev_alloc_skb(alloc_sz);
-#else			
-				pkt_copy = netdev_alloc_skb(padapter->pnetdev, alloc_sz);
-#endif		
+				pkt_copy = rtw_skb_alloc(alloc_sz);
+
 				if(pkt_copy)
 				{
 					pkt_copy->dev = padapter->pnetdev;
@@ -450,7 +454,7 @@ static void rtl8188es_recv_tasklet(void *priv)
 						break;
 					}
 					
-					precvframe->u.hdr.pkt = skb_clone(precvbuf->pskb, GFP_ATOMIC);
+					precvframe->u.hdr.pkt = rtw_skb_clone(precvbuf->pskb);
 					if(precvframe->u.hdr.pkt)
 					{
 						_pkt	*pkt_clone = precvframe->u.hdr.pkt;
@@ -463,7 +467,7 @@ static void rtl8188es_recv_tasklet(void *priv)
 					}
 					else
 					{
-						DBG_8192C("rtl8188es_recv_tasklet: skb_clone fail\n");
+						DBG_8192C("rtl8188es_recv_tasklet: rtw_skb_clone fail\n");
 						rtw_free_recvframe(precvframe, &precvpriv->free_recv_queue);
 						break;
 					}
@@ -535,7 +539,7 @@ static void rtl8188es_recv_tasklet(void *priv)
 			}
 
 			// Page size of receive package is 128 bytes alignment =>DMA AGG
-			// refer to _InitTransferPageSize()
+
 			pkt_offset = _RND128(pkt_offset);
 			transfer_len -= pkt_offset;
 			ptr += pkt_offset;	
@@ -560,13 +564,13 @@ static s32 pre_recv_entry(union recv_frame *precvframe, struct recv_buf	*precvbu
 	_adapter *secondary_padapter = primary_padapter->pbuddy_adapter;
 	struct recv_priv *precvpriv = &primary_padapter->recvpriv;
 	_queue *pfree_recv_queue = &precvpriv->free_recv_queue;
-	u8	*pbuf = precvframe->u.hdr.rx_head;
+	u8	*pbuf = precvframe->u.hdr.rx_data;
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(primary_padapter);
 
 	if(!secondary_padapter)
 		return ret;
 
-	paddr1 = GetAddr1Ptr(precvframe->u.hdr.rx_data);
+	paddr1 = GetAddr1Ptr(pbuf);
 
 	if(IS_MCAST(paddr1) == _FALSE)//unicast packets
 	{
@@ -602,7 +606,7 @@ static s32 pre_recv_entry(union recv_frame *precvframe, struct recv_buf	*precvbu
 		_rtw_memcpy(&precvframe_if2->u.hdr.attrib, &precvframe->u.hdr.attrib, sizeof(struct rx_pkt_attrib));
 		pattrib = &precvframe_if2->u.hdr.attrib;
 
-		pkt_copy = skb_copy( precvframe->u.hdr.pkt, GFP_ATOMIC);
+		pkt_copy = rtw_skb_copy( precvframe->u.hdr.pkt);
 		if (pkt_copy == NULL)
 		{
 			RT_TRACE(_module_rtl871x_recv_c_, _drv_crit_, ("%s: no enough memory to allocate SKB!\n",__FUNCTION__));
@@ -738,12 +742,23 @@ static void rtl8188es_recv_tasklet(void *priv)
 
 			if ((pattrib->crc_err) || (pattrib->icv_err))
 			{
+			#ifdef CONFIG_MP_INCLUDED
+				if (padapter->registrypriv.mp_mode == 1)
+				{
+					if ((check_fwstate(&padapter->mlmepriv, WIFI_MP_STATE) == _TRUE))//&&(padapter->mppriv.check_mp_pkt == 0))
+					{
+						if (pattrib->crc_err == 1)
+							padapter->mppriv.rx_crcerrpktcount++;
+					}
+				}
+			#endif
+	
 				DBG_8192C("%s: crc_err=%d icv_err=%d, skip!\n", __FUNCTION__, pattrib->crc_err, pattrib->icv_err);
 				rtw_free_recvframe(precvframe, &precvpriv->free_recv_queue);
 			}
 			else
 			{
-				ppkt = skb_clone(precvbuf->pskb, GFP_ATOMIC);
+				ppkt = rtw_skb_clone(precvbuf->pskb);
 				if (ppkt == NULL)
 				{
 					RT_TRACE(_module_rtl871x_recv_c_, _drv_crit_, ("%s: no enough memory to allocate SKB!\n",__FUNCTION__));
@@ -834,14 +849,14 @@ static void rtl8188es_recv_tasklet(void *priv)
 			}
 
 			// Page size of receive package is 128 bytes alignment =>DMA AGG
-			// refer to _InitTransferPageSize()
+
 			pkt_offset = _RND128(pkt_offset);
 			precvbuf->pdata += pkt_offset;
 			ptr = precvbuf->pdata;
 
 		}
 
-		dev_kfree_skb_any(precvbuf->pskb);
+		rtw_skb_free(precvbuf->pskb);
 		precvbuf->pskb = NULL;
 		rtw_enqueue_recvbuf(precvbuf, &precvpriv->free_recv_buf_queue);
 

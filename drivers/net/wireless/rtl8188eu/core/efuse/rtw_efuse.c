@@ -19,12 +19,8 @@
  ******************************************************************************/
 #define _RTW_EFUSE_C_
 
-#include <drv_conf.h>
-#include <osdep_service.h>
 #include <drv_types.h>
-
-#include <rtw_efuse.h>
-
+#include <hal_data.h>
 
 
 /*------------------------Define local variable------------------------------*/
@@ -122,7 +118,17 @@ Efuse_PowerSwitch(
 	IN	u8		PwrState)
 {
 	pAdapter->HalFunc.EfusePowerSwitch(pAdapter, bWrite, PwrState);
-}	
+}
+
+VOID
+BTEfuse_PowerSwitch(
+	IN	PADAPTER	pAdapter,
+	IN	u8		bWrite,
+	IN	u8		PwrState)
+{
+	if(pAdapter->HalFunc.BTEfusePowerSwitch)
+		pAdapter->HalFunc.BTEfusePowerSwitch(pAdapter, bWrite, PwrState);
+}
 
 /*-----------------------------------------------------------------------------
  * Function:	efuse_GetCurrentSize
@@ -193,7 +199,12 @@ ReadEFuseByte(
 		Efuse_Read1ByteFromFakeContent(Adapter, _offset, pbuf);
 		return;
 	}
-
+	if (IS_HARDWARE_TYPE_8723B(Adapter))
+	{
+		// <20130121, Kordan> For SMIC S55 EFUSE specificatoin.
+		//0x34[11]: SW force PGMEN input of efuse to high. (for the bank selected by 0x34[9:8])
+		PHY_SetMacReg(Adapter, EFUSE_TEST, BIT11, 0);
+	}
 	//Write Address
 	rtw_write8(Adapter, EFUSE_CTRL+1, (_offset & 0xff));  		
 	readbyte = rtw_read8(Adapter, EFUSE_CTRL+2);
@@ -224,7 +235,6 @@ ReadEFuseByte(
 	//DBG_871X("ReadEFuseByte _offset:%08u, in %d ms\n",_offset ,rtw_get_passing_time_ms(start));
 	
 }
-
 
 //
 //	Description:
@@ -411,6 +421,7 @@ EFUSE_Write1Byte(
 	}
 }/* EFUSE_Write1Byte */
 
+
 /*  11/16/2008 MH Read one byte from real Efuse. */
 u8
 efuse_OneByteRead(
@@ -421,22 +432,40 @@ efuse_OneByteRead(
 {
 	u8	tmpidx = 0;
 	u8	bResult;
+	u8	readbyte;
+
+	//DBG_871X("===> EFUSE_OneByteRead(), addr = %x\n", addr);
+	//DBG_871X("===> EFUSE_OneByteRead() start, 0x34 = 0x%X\n", rtw_read32(pAdapter, EFUSE_TEST));
 
 	if(bPseudoTest)
 	{
 		bResult = Efuse_Read1ByteFromFakeContent(pAdapter, addr, data);
 		return bResult;
 	}
+
+	if(	IS_HARDWARE_TYPE_8723B(pAdapter) ||
+		(IS_HARDWARE_TYPE_8192E(pAdapter) && IS_VENDOR_8192E_B_CUT(pAdapter)))
+	{
+		// <20130121, Kordan> For SMIC EFUSE specificatoin.
+		//0x34[11]: SW force PGMEN input of efuse to high. (for the bank selected by 0x34[9:8])	
+		//PHY_SetMacReg(pAdapter, 0x34, BIT11, 0);
+		rtw_write16(pAdapter, 0x34, rtw_read16(pAdapter,0x34)& (~BIT11) ); 
+	}
+
 	// -----------------e-fuse reg ctrl ---------------------------------
 	//address			
 	rtw_write8(pAdapter, EFUSE_CTRL+1, (u8)(addr&0xff));		
-	rtw_write8(pAdapter, EFUSE_CTRL+2, ((u8)((addr>>8) &0x03) ) | 
+	rtw_write8(pAdapter, EFUSE_CTRL+2, ((u8)((addr>>8) &0x03) ) |
 	(rtw_read8(pAdapter, EFUSE_CTRL+2)&0xFC ));	
 
-	rtw_write8(pAdapter, EFUSE_CTRL+3,  0x72);//read cmd	
+	//rtw_write8(pAdapter, EFUSE_CTRL+3,  0x72);//read cmd	
+	//Write bit 32 0
+	readbyte = rtw_read8(pAdapter, EFUSE_CTRL+3);		
+	rtw_write8(pAdapter, EFUSE_CTRL+3, (readbyte & 0x7f));
 
-	while(!(0x80 &rtw_read8(pAdapter, EFUSE_CTRL+3))&&(tmpidx<100))
+	while(!(0x80 &rtw_read8(pAdapter, EFUSE_CTRL+3))&&(tmpidx<1000))
 	{
+		rtw_mdelay_os(1);
 		tmpidx++;
 	}
 	if(tmpidx<100)
@@ -448,7 +477,10 @@ efuse_OneByteRead(
 	{
 		*data = 0xff;	
 		bResult = _FALSE;
+		DBG_871X("%s: [ERROR] addr=0x%x bResult=%d time out 1s !!!\n", __FUNCTION__, addr, bResult);
+		DBG_871X("%s: [ERROR] EFUSE_CTRL =0x%08x !!!\n", __FUNCTION__, rtw_read32(pAdapter, EFUSE_CTRL));
 	}
+
 	return bResult;
 }
 		
@@ -461,40 +493,67 @@ efuse_OneByteWrite(
 	IN	BOOLEAN		bPseudoTest)
 {
 	u8	tmpidx = 0;
-	u8	bResult;
+	u8	bResult=_FALSE;
+	u32 efuseValue = 0;
+
+	//DBG_871X("===> EFUSE_OneByteWrite(), addr = %x data=%x\n", addr, data);
+	//DBG_871X("===> EFUSE_OneByteWrite() start, 0x34 = 0x%X\n", rtw_read32(pAdapter, EFUSE_TEST));
 
 	if(bPseudoTest)
 	{
 		bResult = Efuse_Write1ByteToFakeContent(pAdapter, addr, data);
 		return bResult;
 	}
-	//RT_TRACE(COMP_EFUSE, DBG_LOUD, ("Addr = %x Data=%x\n", addr, data));
 
-	//return	0;
 
 	// -----------------e-fuse reg ctrl ---------------------------------	
 	//address			
-	rtw_write8(pAdapter, EFUSE_CTRL+1, (u8)(addr&0xff));
-	rtw_write8(pAdapter, EFUSE_CTRL+2, 
-	(rtw_read8(pAdapter, EFUSE_CTRL+2)&0xFC )|(u8)((addr>>8)&0x03) );	
-	rtw_write8(pAdapter, EFUSE_CTRL, data);//data		
 
-	rtw_write8(pAdapter, EFUSE_CTRL+3, 0xF2);//write cmd
-		
+	
+	efuseValue = rtw_read32(pAdapter, EFUSE_CTRL);
+	efuseValue |= (BIT21|BIT31);
+	efuseValue &= ~(0x3FFFF);
+	efuseValue |= ((addr<<8 | data) & 0x3FFFF);
+
+
+	// <20130227, Kordan> 8192E MP chip A-cut had better not set 0x34[11] until B-Cut.
+	if (IS_HARDWARE_TYPE_8723B(pAdapter)||(IS_HARDWARE_TYPE_8192E(pAdapter) && IS_VENDOR_8192E_B_CUT(pAdapter)))
+	{
+		// <20130121, Kordan> For SMIC EFUSE specificatoin.
+		//0x34[11]: SW force PGMEN input of efuse to high. (for the bank selected by 0x34[9:8])
+		//PHY_SetMacReg(pAdapter, 0x34, BIT11, 1);
+		rtw_write16(pAdapter, 0x34, rtw_read16(pAdapter,0x34)| (BIT11) );
+		rtw_write32(pAdapter, EFUSE_CTRL, 0x90600000|((addr<<8 | data)) );
+	}
+	else
+	{
+		rtw_write32(pAdapter, EFUSE_CTRL, efuseValue);
+	}
+
 	while((0x80 &  rtw_read8(pAdapter, EFUSE_CTRL+3)) && (tmpidx<100) ){
+		rtw_mdelay_os(1);
 		tmpidx++;
 	}
-	
+
 	if(tmpidx<100)
-	{					
+	{
 		bResult = _TRUE;
 	}
 	else
-	{			
+	{
 		bResult = _FALSE;
-	}		
-	
-	return bResult;	
+		DBG_871X("%s: [ERROR] addr=0x%x ,efuseValue=0x%x ,bResult=%d time out 1s !!! \n",
+					__FUNCTION__, addr, efuseValue, bResult);
+		DBG_871X("%s: [ERROR] EFUSE_CTRL =0x%08x !!!\n", __FUNCTION__, rtw_read32(pAdapter, EFUSE_CTRL));
+	}
+
+	// disable Efuse program enable
+	if (IS_HARDWARE_TYPE_8723B(pAdapter))
+	{
+		PHY_SetMacReg(pAdapter, EFUSE_TEST, BIT(11), 0);
+	}
+
+	return bResult;
 }
 
 int
@@ -703,6 +762,13 @@ u8 rtw_BT_efuse_map_read(PADAPTER padapter, u16 addr, u16 cnts, u8 *data)
 //------------------------------------------------------------------------------
 u8 rtw_efuse_map_write(PADAPTER padapter, u16 addr, u16 cnts, u8 *data)
 {
+#define RT_ASSERT_RET(expr)												\
+	if(!(expr)) {															\
+		printk( "Assertion failed! %s at ......\n", #expr);							\
+		printk( "      ......%s,%s,line=%d\n",__FILE__,__FUNCTION__,__LINE__);	\
+		return _FAIL;	\
+	}
+
 	u8	offset, word_en;
 	u8	*map;
 	u8	newdata[PGPKT_DATA_SIZE];
@@ -715,6 +781,9 @@ u8 rtw_efuse_map_write(PADAPTER padapter, u16 addr, u16 cnts, u8 *data)
 	if ((addr + cnts) > mapLen)
 		return _FAIL;
 
+	RT_ASSERT_RET(PGPKT_DATA_SIZE == 8); // have to be 8 byte alignment
+	RT_ASSERT_RET((mapLen & 0x7) == 0); // have to be PGPKT_DATA_SIZE alignment for memcpy
+
 	map = rtw_zmalloc(mapLen);
 	if(map == NULL){
 		return _FAIL;
@@ -725,46 +794,20 @@ u8 rtw_efuse_map_write(PADAPTER padapter, u16 addr, u16 cnts, u8 *data)
 
 	Efuse_PowerSwitch(padapter, _TRUE, _TRUE);
 
+	idx = 0;
 	offset = (addr >> 3);
-	word_en = 0xF;
-	_rtw_memset(newdata, 0xFF, PGPKT_DATA_SIZE);
-	i = addr & 0x7;	// index of one package
-	j = 0;		// index of new package
-	idx = 0;	// data index
-
-	if (i & 0x1) {
-		// odd start
-		if (data[idx] != map[addr+idx]) {
-			word_en &= ~BIT(i >> 1);
-			newdata[i-1] = map[addr+idx-1];
-			newdata[i] = data[idx];
-		}
-		i++;
-		idx++;
-	}
-	do {
-		for (; i < PGPKT_DATA_SIZE; i += 2)
+	while (idx < cnts)
+	{
+		word_en = 0xF;
+		j = (addr + idx) & 0x7;
+		_rtw_memcpy(newdata, &map[offset << 3], PGPKT_DATA_SIZE);
+		for (i = j; i<PGPKT_DATA_SIZE && idx < cnts; i++, idx++)
 		{
-			if (cnts == idx) break;
-			if ((cnts - idx) == 1) {
-				if (data[idx] != map[addr+idx]) {
-					word_en &= ~BIT(i >> 1);
-					newdata[i] = data[idx];
-					newdata[i+1] = map[addr+idx+1];
-				}
-				idx++;
-				break;
-			} else {
-				if ((data[idx] != map[addr+idx]) ||
-				    (data[idx+1] != map[addr+idx+1]))
-				{
-					word_en &= ~BIT(i >> 1);
-					newdata[i] = data[idx];
-					newdata[i+1] = data[idx + 1];
-				}
-				idx += 2;
+			if (data[idx] != map[addr + idx])
+			{
+				word_en &= ~BIT(i >> 1);
+				newdata[i] = data[idx];
 			}
-			if (idx == cnts) break;
 		}
 
 		if (word_en != 0xF) {
@@ -779,14 +822,8 @@ u8 rtw_efuse_map_write(PADAPTER padapter, u16 addr, u16 cnts, u8 *data)
 			if (ret == _FAIL) break;
 		}
 
-		if (idx == cnts) break;
-
 		offset++;
-		i = 0;
-		j = 0;
-		word_en = 0xF;
-		_rtw_memset(newdata, 0xFF, PGPKT_DATA_SIZE);
-	} while (1);
+	}
 
 	Efuse_PowerSwitch(padapter, _TRUE, _FALSE);
 
@@ -801,10 +838,17 @@ exit:
 //------------------------------------------------------------------------------
 u8 rtw_BT_efuse_map_write(PADAPTER padapter, u16 addr, u16 cnts, u8 *data)
 {
+#define RT_ASSERT_RET(expr)												\
+	if(!(expr)) {															\
+		printk( "Assertion failed! %s at ......\n", #expr);							\
+		printk( "      ......%s,%s,line=%d\n",__FILE__,__FUNCTION__,__LINE__);	\
+		return _FAIL;	\
+	}
+
 	u8	offset, word_en;
 	u8	*map;
 	u8	newdata[PGPKT_DATA_SIZE];
-	s32	i, j, idx;
+	s32	i=0, j=0, idx;
 	u8	ret = _SUCCESS;
 	u16	mapLen=0;
 
@@ -813,6 +857,9 @@ u8 rtw_BT_efuse_map_write(PADAPTER padapter, u16 addr, u16 cnts, u8 *data)
 	if ((addr + cnts) > mapLen)
 		return _FAIL;
 
+	RT_ASSERT_RET(PGPKT_DATA_SIZE == 8); // have to be 8 byte alignment
+	RT_ASSERT_RET((mapLen & 0x7) == 0); // have to be PGPKT_DATA_SIZE alignment for memcpy
+
 	map = rtw_zmalloc(mapLen);
 	if(map == NULL){
 		return _FAIL;
@@ -820,74 +867,53 @@ u8 rtw_BT_efuse_map_write(PADAPTER padapter, u16 addr, u16 cnts, u8 *data)
 
 	ret = rtw_BT_efuse_map_read(padapter, 0, mapLen, map);
 	if (ret == _FAIL) goto exit;
-
+	DBG_871X("OFFSET\tVALUE(hex)\n");
+	for (i=0; i<1024; i+=16) // set 512 because the iwpriv's extra size have limit 0x7FF
+	{
+			DBG_871X("0x%03x\t", i);
+			for (j=0; j<8; j++) {
+				DBG_871X("%02X ", map[i+j]);
+			}
+			DBG_871X("\t");
+			for (; j<16; j++) {
+				DBG_871X("%02X ", map[i+j]);
+			}
+			DBG_871X("\n");
+	}
+	DBG_871X("\n");
 	Efuse_PowerSwitch(padapter, _TRUE, _TRUE);
 
+	idx = 0;
 	offset = (addr >> 3);
-	word_en = 0xF;
-	_rtw_memset(newdata, 0xFF, PGPKT_DATA_SIZE);
-	i = addr & 0x7;	// index of one package
-	j = 0;		// index of new package
-	idx = 0;	// data index
-
-	if (i & 0x1) {
-		// odd start
-		if (data[idx] != map[addr+idx]) {
-			word_en &= ~BIT(i >> 1);
-			newdata[i-1] = map[addr+idx-1];
-			newdata[i] = data[idx];
-		}
-		i++;
-		idx++;
-	}
-	do {
-		for (; i < PGPKT_DATA_SIZE; i += 2)
+	while (idx < cnts)
+	{
+		word_en = 0xF;
+		j = (addr + idx) & 0x7;
+		_rtw_memcpy(newdata, &map[offset << 3], PGPKT_DATA_SIZE);
+		for (i = j; i<PGPKT_DATA_SIZE && idx < cnts; i++, idx++)
 		{
-			if (cnts == idx) break;
-			if ((cnts - idx) == 1) {
-				if (data[idx] != map[addr+idx]) {
-					word_en &= ~BIT(i >> 1);
-					newdata[i] = data[idx];
-					newdata[i+1] = map[addr+idx+1];
-				}
-				idx++;
-				break;
-			} else {
-				if ((data[idx] != map[addr+idx]) ||
-				    (data[idx+1] != map[addr+idx+1]))
-				{
-					word_en &= ~BIT(i >> 1);
-					newdata[i] = data[idx];
-					newdata[i+1] = data[idx + 1];
-				}
-				idx += 2;
+			if (data[idx] != map[addr + idx])
+			{
+				word_en &= ~BIT(i >> 1);
+				newdata[i] = data[idx];
 			}
-			if (idx == cnts) break;
 		}
 
-		if (word_en != 0xF)
-		{
-			DBG_871X("%s: offset=%#X\n", __FUNCTION__, offset);
-			DBG_871X("%s: word_en=%#X\n", __FUNCTION__, word_en);
+		if (word_en != 0xF) {
+			DBG_871X("offset=%x \n",offset);
+			DBG_871X("word_en=%x \n",word_en);
 			DBG_871X("%s: data=", __FUNCTION__);
-			for (i=0; i<PGPKT_DATA_SIZE; i++)
+			for(i=0;i<PGPKT_DATA_SIZE;i++)
 			{
 				DBG_871X("0x%02X ", newdata[i]);
 			}
 			DBG_871X("\n");
-
 			ret = Efuse_PgPacketWrite_BT(padapter, offset, word_en, newdata, _FALSE);
 			if (ret == _FAIL) break;
 		}
 
-		if (idx == cnts) break;
-
 		offset++;
-		i = 0;
-		j = 0;
-		word_en = 0xF;
-		_rtw_memset(newdata, 0xFF, PGPKT_DATA_SIZE);
-	} while (1);
+	}
 
 	Efuse_PowerSwitch(padapter, _TRUE, _FALSE);
 

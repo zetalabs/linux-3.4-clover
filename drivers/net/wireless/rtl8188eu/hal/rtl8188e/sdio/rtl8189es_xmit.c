@@ -19,13 +19,10 @@
  ******************************************************************************/
 #define _RTL8189ES_XMIT_C_
 
-#include <drv_conf.h>
-#include <osdep_service.h>
 #include <drv_types.h>
-#include <sdio_ops.h>
 #include <rtl8188e_hal.h>
 
-static void fill_txdesc_sectype(struct pkt_attrib *pattrib, PTXDESC ptxdesc)
+static void fill_txdesc_sectype(struct pkt_attrib *pattrib, PTXDESC_8188E ptxdesc)
 {
 	if ((pattrib->encrypt > 0) && !pattrib->bswenc)
 	{
@@ -55,7 +52,7 @@ static void fill_txdesc_sectype(struct pkt_attrib *pattrib, PTXDESC ptxdesc)
 }
 
  
- static void fill_txdesc_vcs(struct pkt_attrib *pattrib, PTXDESC ptxdesc)
+ static void fill_txdesc_vcs(struct pkt_attrib *pattrib, PTXDESC_8188E ptxdesc)
 {
 	//DBG_8192C("cvs_mode=%d\n", pattrib->vcs_mode);
 
@@ -80,7 +77,7 @@ static void fill_txdesc_sectype(struct pkt_attrib *pattrib, PTXDESC ptxdesc)
 		// Set RTS BW
 		if(pattrib->ht_en)
 		{
-			if (pattrib->bwmode & HT_CHANNEL_WIDTH_40)
+			if (pattrib->bwmode & CHANNEL_WIDTH_40)
 				ptxdesc->rts_bw = 1;
 
 			switch (pattrib->ch_offset)
@@ -105,13 +102,13 @@ static void fill_txdesc_sectype(struct pkt_attrib *pattrib, PTXDESC ptxdesc)
 	}
 }
 
-static void fill_txdesc_phy(struct pkt_attrib *pattrib, PTXDESC ptxdesc)
+static void fill_txdesc_phy(struct pkt_attrib *pattrib, PTXDESC_8188E ptxdesc)
 {
 	//DBG_8192C("bwmode=%d, ch_off=%d\n", pattrib->bwmode, pattrib->ch_offset);
 
 	if (pattrib->ht_en)
 	{
-		if (pattrib->bwmode & HT_CHANNEL_WIDTH_40)
+		if (pattrib->bwmode & CHANNEL_WIDTH_40)
 			ptxdesc->data_bw = 1;
 
 		switch (pattrib->ch_offset)
@@ -231,7 +228,7 @@ void rtl8188e_cal_txdesc_chksum(struct tx_desc *ptxdesc)
 	ptxdesc->txdw7 |= cpu_to_le32(checksum & 0x0000ffff);
 }
 
-static void fill_txdesc_sectype(struct pkt_attrib *pattrib, PTXDESC ptxdesc)
+static void fill_txdesc_sectype(struct pkt_attrib *pattrib, PTXDESC_8188E ptxdesc)
 {
 	if ((pattrib->encrypt > 0) && !pattrib->bswenc)
 	{
@@ -256,7 +253,7 @@ static void fill_txdesc_sectype(struct pkt_attrib *pattrib, PTXDESC ptxdesc)
 	}
 }
 
-static void fill_txdesc_vcs(struct pkt_attrib *pattrib, PTXDESC ptxdesc)
+static void fill_txdesc_vcs(struct pkt_attrib *pattrib, PTXDESC_8188E ptxdesc)
 {
 	//DBG_8192C("cvs_mode=%d\n", pattrib->vcs_mode);
 
@@ -279,13 +276,13 @@ static void fill_txdesc_vcs(struct pkt_attrib *pattrib, PTXDESC ptxdesc)
 		ptxdesc->hw_rts_en = 1; // ENABLE HW RTS
 }
 
-static void fill_txdesc_phy(struct pkt_attrib *pattrib, PTXDESC ptxdesc)
+static void fill_txdesc_phy(struct pkt_attrib *pattrib, PTXDESC_8188E ptxdesc)
 {
 	//DBG_8192C("bwmode=%d, ch_off=%d\n", pattrib->bwmode, pattrib->ch_offset);
 
 	if (pattrib->ht_en)
 	{
-		if (pattrib->bwmode & HT_CHANNEL_WIDTH_40)
+		if (pattrib->bwmode & CHANNEL_WIDTH_40)
 			ptxdesc->data_bw = 1;
 
 		switch (pattrib->ch_offset)
@@ -320,7 +317,7 @@ void rtl8188es_fill_default_txdesc(
 	struct mlme_ext_info *pmlmeinfo;
 	struct dm_priv *pdmpriv;
 	struct pkt_attrib *pattrib;
-	PTXDESC ptxdesc;
+	PTXDESC_8188E ptxdesc;
 	s32 bmcst;
 
 
@@ -333,12 +330,8 @@ void rtl8188es_fill_default_txdesc(
 	pattrib = &pxmitframe->attrib;
 	bmcst = IS_MCAST(pattrib->ra);
 
-	ptxdesc = (PTXDESC)pbuf;
+	ptxdesc = (PTXDESC_8188E)pbuf;
 
-#ifdef CONFIG_CONCURRENT_MODE
-	if(rtw_buddy_adapter_up(padapter) && padapter->adapter_type > PRIMARY_ADAPTER)	
-		pHalData = GET_HAL_DATA(padapter->pbuddy_adapter);				
-#endif //CONFIG_CONCURRENT_MODE
 
 	if (pxmitframe->frame_tag == DATA_FRAMETAG)
 	{
@@ -382,6 +375,7 @@ void rtl8188es_fill_default_txdesc(
 	               #if 0
 	                if(padapter->fix_rate!= 0xFF){
 					ptxdesc->datarate = padapter->fix_rate;
+					ptxdesc->txdw4 | cpu_to_le32(DISDATAFB);
 				}
 	                #endif
 			#if (POWER_TRAINING_ACTIVE==1)
@@ -391,7 +385,8 @@ void rtl8188es_fill_default_txdesc(
 			ptxdesc->datarate = 0x13; //MCS7 
 			ptxdesc->sgi = 1; // SGI
 			if(padapter->fix_rate!= 0xFF){//modify datat by iwpriv
-				ptxdesc->datarate = padapter->fix_rate;				
+				ptxdesc->datarate = padapter->fix_rate;	
+				ptxdesc->txdw4 | cpu_to_le32(DISDATAFB);
 			}
 		#endif	
 		
@@ -460,7 +455,7 @@ void rtl8188es_fill_default_txdesc(
 
 		pdesc = (struct tx_desc*)ptxdesc;
 		RT_TRACE(_module_hal_xmit_c_, _drv_notice_, ("%s: MP_FRAMETAG\n", __FUNCTION__));
-		fill_txdesc_for_mp(padapter, pdesc);
+		fill_txdesc_for_mp(padapter, (u8 *)pdesc);
 
 		pdesc->txdw0 = le32_to_cpu(pdesc->txdw0);
 		pdesc->txdw1 = le32_to_cpu(pdesc->txdw1);
@@ -683,6 +678,28 @@ static u8 rtl8188es_query_tx_freepage(_adapter *padapter, struct xmit_buf *pxmit
 		}
 
 		n++;
+
+#if 0
+		if (n >= 5000)
+		{
+			u8 reg_value_1 = 0;
+			u8 reg_value_2 = 0;
+			u8 reg_value_3 = 0;
+			
+			//try to recover the transmission
+			reg_value_1 = rtw_read8(padapter, REG_SYS_FUNC_EN);
+			reg_value_2 = rtw_read8(padapter, REG_CR);
+			reg_value_3 = rtw_read8(padapter, REG_TXPAUSE);
+			DBG_871X("Before recovery: REG_SYS_FUNC_EN = 0x%X, REG_CR = 0x%X, REG_TXPAUSE = 0x%X\n", reg_value_1, reg_value_2, reg_value_3);
+
+			rtw_write8(padapter, REG_SYS_FUNC_EN, reg_value_1 | 0x01);
+			rtw_write8(padapter, REG_CR, reg_value_2 | 0xC0);
+			rtw_write8(padapter, REG_TXPAUSE, 0);
+			DBG_871X("After recovery: REG_SYS_FUNC_EN = 0x%X, REG_CR = 0x%X, REG_TXPAUSE = 0x%X\n", 
+				rtw_read8(padapter, REG_SYS_FUNC_EN), rtw_read8(padapter, REG_CR), rtw_read8(padapter, REG_TXPAUSE));
+		}
+#endif	
+
 		if ((n % 60) == 0) {//or 80
 			//DBG_871X("%s: FIFO starvation!(%d) len=%d agg=%d page=(R)%d(A)%d\n",
 			//	__func__, n, pxmitbuf->len, pxmitbuf->agg_num, pframe->pg_num, freePage[PageIdx] + freePage[PUBLIC_QUEUE_IDX]);
@@ -808,10 +825,6 @@ s32 rtl8188es_xmit_buf_handler(PADAPTER padapter)
 //		||(buddy_rm_stop == _TRUE)
 //#endif
 	) {
-
-#ifdef CONFIG_LPS_LCLK
-		rtw_unregister_tx_alive(padapter);
-#endif
 		RT_TRACE(_module_hal_xmit_c_, _drv_notice_,
 				 ("%s: bDriverStopped(%d) bSurpriseRemoved(%d)\n",
 				  __FUNCTION__, padapter->bDriverStopped, padapter->bSurpriseRemoved));
@@ -953,7 +966,7 @@ void UpdateEarlyModeInfo8188E(struct xmit_priv *pxmitpriv,struct xmit_buf *pxmit
 	//_adapter *padapter, struct xmit_frame *pxmitframe,struct tx_servq	*ptxservq
 	int index,j;
 	u16 offset,pktlen;
-	PTXDESC ptxdesc;
+	PTXDESC_8188E ptxdesc;
 	
 	u8 *pmem,*pEMInfo_mem;
 	s8 node_num_0=0,node_num_1=0;
@@ -1001,7 +1014,7 @@ void UpdateEarlyModeInfo8188E(struct xmit_priv *pxmitpriv,struct xmit_buf *pxmit
 		}
 			
 		if(pmem){
-			ptxdesc = (PTXDESC)(pmem+offset);
+			ptxdesc = (PTXDESC_8188E)(pmem+offset);
 			pEMInfo_mem = pmem+offset+TXDESC_SIZE;	
 			#ifdef DBG_EMINFO
 			DBG_8192C("%s ==> desc.pkt_len=%d\n",__FUNCTION__,ptxdesc->pktlen);
@@ -1340,9 +1353,9 @@ static s32 xmit_xmitframes(PADAPTER padapter, struct xmit_priv *pxmitpriv)
 
 				ret = rtw_xmitframe_coalesce(padapter, pxmitframe->pkt, pxmitframe);
 				if (ret == _FAIL) {
-					RT_TRACE(_module_hal_xmit_c_, _drv_err_, ("%s: coalesce FAIL!", __FUNCTION__));
+					DBG_871X("%s: coalesce FAIL!", __FUNCTION__);					
 					// Todo: error handler
-					rtw_free_xmitframe(pxmitpriv, pxmitframe);
+					//rtw_free_xmitframe(pxmitpriv, pxmitframe);
 				} else {
 					agg_num++;
 					if (agg_num != 1)
@@ -1430,14 +1443,13 @@ s32 rtl8188es_xmit_handler(PADAPTER padapter)
 	struct xmit_priv *pxmitpriv = &padapter->xmitpriv ;
 	s32 ret;
 	_irqL irql;
-	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
 //#ifdef CONFIG_CONCURRENT_MODE
 //	s32 buddy_rm_stop = _FAIL;
 //#endif
 
 
 wait:
-	ret = _rtw_down_sema(&pHalData->SdioXmitSema);
+	ret = _rtw_down_sema(&pxmitpriv->SdioXmitSema);
 	if (_FAIL == ret) {
 		RT_TRACE(_module_hal_xmit_c_, _drv_emerg_, ("%s: down sema fail!\n", __FUNCTION__));
 		return _FAIL;
@@ -1491,7 +1503,6 @@ thread_return rtl8188es_xmit_thread(thread_context context)
 	s32 ret;
 	PADAPTER padapter= (PADAPTER)context;	
 	struct xmit_priv *pxmitpriv= &padapter->xmitpriv;
-	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
 	
 	ret = _SUCCESS;
 
@@ -1506,7 +1517,7 @@ thread_return rtl8188es_xmit_thread(thread_context context)
 		}
 	} while (_SUCCESS == ret);
 
-	_rtw_up_sema(&pHalData->SdioXmitTerminateSema);
+	_rtw_up_sema(&pxmitpriv->SdioXmitTerminateSema);
 
 	RT_TRACE(_module_hal_xmit_c_, _drv_notice_, ("-%s\n", __FUNCTION__));
 	DBG_871X("exit %s\n", __FUNCTION__);
@@ -1583,7 +1594,6 @@ s32 rtl8188es_mgnt_xmit(PADAPTER padapter, struct xmit_frame *pmgntframe)
 s32 rtl8188es_hal_xmit(PADAPTER padapter, struct xmit_frame *pxmitframe)
 {
 	struct xmit_priv 	*pxmitpriv = &padapter->xmitpriv;
-	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
 	_irqL irql;
 	s32 err;
 
@@ -1607,8 +1617,6 @@ s32 rtl8188es_hal_xmit(PADAPTER padapter, struct xmit_frame *pxmitframe)
 		RT_TRACE(_module_hal_xmit_c_, _drv_err_, ("%s: enqueue xmitframe fail\n",__FUNCTION__));
 		rtw_free_xmitframe(pxmitpriv, pxmitframe);
 
-		// Trick, make the statistics correct
-		pxmitpriv->tx_pkts--;
 		pxmitpriv->tx_drop++;
 		return _TRUE;
 	}
@@ -1616,7 +1624,7 @@ s32 rtl8188es_hal_xmit(PADAPTER padapter, struct xmit_frame *pxmitframe)
 #ifdef CONFIG_SDIO_TX_TASKLET
 	tasklet_hi_schedule(&pxmitpriv->xmit_tasklet);
 #else
-	_rtw_up_sema(&pHalData->SdioXmitSema);
+	_rtw_up_sema(&pxmitpriv->SdioXmitSema);
 #endif
 
 	return _FALSE;
@@ -1625,15 +1633,12 @@ s32 rtl8188es_hal_xmit(PADAPTER padapter, struct xmit_frame *pxmitframe)
 s32	rtl8188es_hal_xmitframe_enqueue(_adapter *padapter, struct xmit_frame *pxmitframe)
 {
 	struct xmit_priv 	*pxmitpriv = &padapter->xmitpriv;
-	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
 	s32 err;
 	
 	if ((err=rtw_xmitframe_enqueue(padapter, pxmitframe)) != _SUCCESS) 
 	{
 		rtw_free_xmitframe(pxmitpriv, pxmitframe);
 
-		// Trick, make the statistics correct
-		pxmitpriv->tx_pkts--;
 		pxmitpriv->tx_drop++;					
 	}
 	else
@@ -1641,7 +1646,7 @@ s32	rtl8188es_hal_xmitframe_enqueue(_adapter *padapter, struct xmit_frame *pxmit
 #ifdef CONFIG_SDIO_TX_TASKLET
 		tasklet_hi_schedule(&pxmitpriv->xmit_tasklet);					
 #else
-		_rtw_up_sema(&pHalData->SdioXmitSema);
+		_rtw_up_sema(&pxmitpriv->SdioXmitSema);
 #endif
 	}
 	
@@ -1669,8 +1674,8 @@ s32 rtl8188es_init_xmit_priv(PADAPTER padapter)
 #endif
 #else //CONFIG_SDIO_TX_TASKLET
 
-	_rtw_init_sema(&pHalData->SdioXmitSema, 0);
-	_rtw_init_sema(&pHalData->SdioXmitTerminateSema, 0);
+	_rtw_init_sema(&pxmitpriv->SdioXmitSema, 0);
+	_rtw_init_sema(&pxmitpriv->SdioXmitTerminateSema, 0);
 #endif //CONFIG_SDIO_TX_TASKLET
 
 	_rtw_spinlock_init(&pHalData->SdioTxFIFOFreePageLock);

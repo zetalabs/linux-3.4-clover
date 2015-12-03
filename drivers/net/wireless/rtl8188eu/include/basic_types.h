@@ -20,8 +20,6 @@
 #ifndef __BASIC_TYPES_H__
 #define __BASIC_TYPES_H__
 
-#include <drv_conf.h>
-
 
 #define SUCCESS	0
 #define FAIL	(-1)
@@ -170,7 +168,7 @@
 //
 // Byte Swapping routine.
 //
-#define EF1Byte	
+#define EF1Byte	(u8)
 #define EF2Byte 	le16_to_cpu
 #define EF4Byte	le32_to_cpu
 
@@ -333,6 +331,12 @@
 #define N_BYTE_ALIGMENT(__Value, __Aligment) ((__Aligment == 1) ? (__Value) : (((__Value + __Aligment - 1) / __Aligment) * __Aligment))
 
 typedef unsigned char	BOOLEAN,*PBOOLEAN;
+
+#define TEST_FLAG(__Flag,__testFlag)		(((__Flag) & (__testFlag)) != 0)
+#define SET_FLAG(__Flag, __setFlag)			((__Flag) |= __setFlag)
+#define CLEAR_FLAG(__Flag, __clearFlag)		((__Flag) &= ~(__clearFlag))
+#define CLEAR_FLAGS(__Flag)					((__Flag) = 0)
+#define TEST_FLAGS(__Flag, __testFlags)		(((__Flag) & (__testFlags)) == (__testFlags))
 
 #endif //__BASIC_TYPES_H__
 

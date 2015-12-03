@@ -19,13 +19,7 @@
  ******************************************************************************/
 #define _RTW_STA_MGT_C_
 
-#include <drv_conf.h>
-#include <osdep_service.h>
 #include <drv_types.h>
-#include <recv_osdep.h>
-#include <xmit_osdep.h>
-#include <mlme_osdep.h>
-
 
 #if defined (PLATFORM_LINUX) && defined (PLATFORM_WINDOWS)
 
@@ -33,7 +27,6 @@
 
 #endif
 
-#include <sta_info.h>
 
 void _rtw_init_stainfo(struct sta_info *psta);
 void _rtw_init_stainfo(struct sta_info *psta)
@@ -152,6 +145,9 @@ _func_enter_;
 	pstapriv->expire_to = 3; // 3*2 = 6 sec
 #else
 	pstapriv->expire_to = 60;// 60*2 = 120 sec = 2 min, expire after no any traffic.
+#endif	
+#ifdef CONFIG_ATMEL_RC_PATCH
+	_rtw_memset(  pstapriv->atmel_rc_pattern, 0, ETH_ALEN);
 #endif	
 	pstapriv->max_num_sta = NUM_STA;
 		
@@ -336,10 +332,9 @@ struct	sta_info *rtw_alloc_stainfo(struct	sta_priv *pstapriv, u8 *hwaddr)
 _func_enter_;	
 
 	pfree_sta_queue = &pstapriv->free_sta_queue;
-	
+
 	//_enter_critical_bh(&(pfree_sta_queue->lock), &irqL);
 	_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL2);
-
 	if (_rtw_queue_empty(pfree_sta_queue) == _TRUE)
 	{
 		//_exit_critical_bh(&(pfree_sta_queue->lock), &irqL);
@@ -433,9 +428,15 @@ _func_enter_;
 		//init for DM
 		psta->rssi_stat.UndecoratedSmoothedPWDB = (-1);
 		psta->rssi_stat.UndecoratedSmoothedCCK = (-1);
-		
+#ifdef CONFIG_ATMEL_RC_PATCH
+		psta->flag_atmel_rc = 0;
+#endif
 		/* init for the sequence number of received management frame */
 		psta->RxMgmtFrameSeqNum = 0xffff;
+
+		//alloc mac id for non-bc/mc station,
+		rtw_alloc_macid(pstapriv->padapter, psta);
+
 	}
 	
 exit:
@@ -584,6 +585,10 @@ _func_enter_;
 	if (!(psta->state & WIFI_AP_STATE))
 		rtw_hal_set_odm_var(padapter, HAL_ODM_STA_INFO, psta, _FALSE);
 			
+
+	//release mac id for non-bc/mc station,
+	rtw_release_macid(pstapriv->padapter, psta);
+
 #ifdef CONFIG_AP_MODE
 
 /*
@@ -599,7 +604,9 @@ _func_enter_;
 	_exit_critical_bh(&pstapriv->auth_list_lock, &irqL0);
 	
 	psta->expire_to = 0;
-	
+#ifdef CONFIG_ATMEL_RC_PATCH
+	psta->flag_atmel_rc = 0;
+#endif
 	psta->sleepq_ac_len = 0;
 	psta->qos_info = 0;
 

@@ -20,7 +20,6 @@
 #ifndef _WIFI_H_
 #define _WIFI_H_
 
-#include <rtw_byteorder.h>
 
 #ifdef BIT
 //#error	"BIT define occurred earlier elsewhere!\n"
@@ -84,6 +83,7 @@ enum WIFI_FRAME_SUBTYPE {
     WIFI_ACTION         = (BIT(7) | BIT(6) | BIT(4) | WIFI_MGT_TYPE),
 
     // below is for control frame
+    WIFI_NDPA         = (BIT(6) | BIT(4) | WIFI_CTRL_TYPE),
     WIFI_PSPOLL         = (BIT(7) | BIT(5) | WIFI_CTRL_TYPE),
     WIFI_RTS            = (BIT(7) | BIT(5) | BIT(4) | WIFI_CTRL_TYPE),
     WIFI_CTS            = (BIT(7) | BIT(6) | WIFI_CTRL_TYPE),
@@ -570,10 +570,12 @@ __inline static int IsFrameTypeCtrl(unsigned char *pframe)
 #define _WAPI_IE_					68
 
 
-#define	EID_BSSCoexistence			72 // 20/40 BSS Coexistence
-#define	EID_BSSIntolerantChlReport	73
+//#define EID_BSSCoexistence			72 // 20/40 BSS Coexistence
+//#define EID_BSSIntolerantChlReport	73
 #define _RIC_Descriptor_IE_			75
-
+#ifdef CONFIG_IEEE80211W
+#define _MME_IE_					76 //802.11w Management MIC element
+#endif //CONFIG_IEEE80211W
 #define _LINK_ID_IE_					101
 #define _CH_SWITCH_TIMING_		104
 #define _PTI_BUFFER_STATUS_		106
@@ -581,6 +583,82 @@ __inline static int IsFrameTypeCtrl(unsigned char *pframe)
 #define _VENDOR_SPECIFIC_IE_		221
 
 #define	_RESERVED47_				47
+
+typedef	enum _ELEMENT_ID{
+	EID_SsId					= 0, /* service set identifier (0:32) */
+	EID_SupRates				= 1, /* supported rates (1:8) */
+	EID_FHParms				= 2, /* FH parameter set (5) */
+	EID_DSParms				= 3, /* DS parameter set (1) */
+	EID_CFParms				= 4, /* CF parameter set (6) */
+	EID_Tim						= 5, /* Traffic Information Map (4:254) */
+	EID_IbssParms				= 6, /* IBSS parameter set (2) */
+	EID_Country					= 7, /* */
+
+	// Form 7.3.2: Information elements in 802.11E/D13.0, page 46.
+	EID_QBSSLoad				= 11,
+	EID_EDCAParms				= 12,
+	EID_TSpec					= 13,
+	EID_TClass					= 14,
+	EID_Schedule				= 15,
+	//
+	
+	EID_Ctext					= 16, /* challenge text*/
+	EID_POWER_CONSTRAINT		= 32, /* Power Constraint*/
+
+	//vivi for WIFITest, 802.11h AP, 20100427
+	// 2010/12/26 MH The definition we can declare always!!
+	EID_PowerCap				= 33,
+	EID_SupportedChannels		= 36,
+	EID_ChlSwitchAnnounce		= 37,
+
+	EID_MeasureRequest			= 38, // Measurement Request
+	EID_MeasureReport			= 39, // Measurement Report
+	
+	EID_ERPInfo 				= 42,
+
+	// Form 7.3.2: Information elements in 802.11E/D13.0, page 46.
+	EID_TSDelay				= 43,
+	EID_TCLASProc				= 44,
+	EID_HTCapability			= 45,
+	EID_QoSCap					= 46,
+	//
+	
+	EID_WPA2					= 48,
+	EID_ExtSupRates			= 50,
+
+	EID_FTIE					= 55, // Defined in 802.11r
+	EID_Timeout				= 56, // Defined in 802.11r
+	
+	EID_SupRegulatory			= 59, // Supported Requlatory Classes 802.11y
+	EID_HTInfo 					= 61,
+	EID_SecondaryChnlOffset		= 62,
+	
+	EID_BSSCoexistence			= 72, // 20/40 BSS Coexistence
+	EID_BSSIntolerantChlReport	= 73,
+	EID_OBSS					= 74, // Overlapping BSS Scan Parameters
+	
+	EID_LinkIdentifier			= 101, // Defined in 802.11z
+	EID_WakeupSchedule		= 102, // Defined in 802.11z
+	EID_ChnlSwitchTimeing		= 104, // Defined in 802.11z
+	EID_PTIControl				= 105, // Defined in 802.11z
+	EID_PUBufferStatus			= 106, // Defined in 802.11z
+	
+	EID_EXTCapability			= 127, // Extended Capabilities
+	// From S19:Aironet IE and S21:AP IP address IE in CCX v1.13, p16 and p18.
+	EID_Aironet					= 133, // 0x85: Aironet Element for Cisco CCX
+	EID_CiscoIP					= 149, // 0x95: IP Address IE for Cisco CCX
+
+	EID_CellPwr					= 150, // 0x96: Cell Power Limit IE. Ref. 0x96.
+
+	EID_CCKM    					= 156, 
+
+	EID_Vendor					= 221, // 0xDD: Vendor Specific
+
+	EID_WAPI					= 68,
+	EID_VHTCapability 			= 191, // Based on 802.11ac D2.0
+	EID_VHTOperation 			= 192, // Based on 802.11ac D2.0
+	EID_OpModeNotification		= 199, // Based on 802.11ac D3.0
+}ELEMENT_ID, *PELEMENT_ID;
 
 /* ---------------------------------------------------------------------------
 					Below is the fixed elements...
@@ -630,7 +708,10 @@ __inline static int IsFrameTypeCtrl(unsigned char *pframe)
 #define _WEP_104_PRIVACY_		5
 #define _WEP_WPA_MIXED_PRIVACY_ 6	// WEP + WPA
 */
-				
+
+#ifdef CONFIG_IEEE80211W
+#define _MME_IE_LENGTH_  18
+#endif //CONFIG_IEEE80211W				
 /*-----------------------------------------------------------------------------
 				Below is the definition for WMM
 ------------------------------------------------------------------------------*/
@@ -847,7 +928,9 @@ typedef enum _HT_CAP_AMPDU_FACTOR {
 #define IEEE80211_HT_CAP_SGI_20			0x0020
 #define IEEE80211_HT_CAP_SGI_40			0x0040
 #define IEEE80211_HT_CAP_TX_STBC			0x0080
-#define IEEE80211_HT_CAP_RX_STBC		0x0300
+#define IEEE80211_HT_CAP_RX_STBC_1R		0x0100
+#define IEEE80211_HT_CAP_RX_STBC_2R		0x0200
+#define IEEE80211_HT_CAP_RX_STBC_3R		0x0300
 #define IEEE80211_HT_CAP_DELAY_BA		0x0400
 #define IEEE80211_HT_CAP_MAX_AMSDU		0x0800
 #define IEEE80211_HT_CAP_DSSSCCK40		0x1000
@@ -1237,7 +1320,25 @@ enum P2P_PS_MODE
 #define ICMPV6_MCAST_MAC(mac)	((mac[0]==0x33)&&(mac[1]==0x33)&&(mac[2]!=0xff))
 #endif	// CONFIG_TX_MCAST2UNI
 
+#ifdef CONFIG_IOCTL_CFG80211
+/* Regulatroy Domain */
+struct regd_pair_mapping {
+	u16 reg_dmnenum;
+	u16 reg_5ghz_ctl;
+	u16 reg_2ghz_ctl;
+};
 
+struct rtw_regulatory {
+	char alpha2[2];
+	u16 country_code;
+	u16 max_power_level;
+	u32 tp_scale;
+	u16 current_rd;
+	u16 current_rd_ext;
+	int16_t power_limit;
+	struct regd_pair_mapping *regpair;
+};
+#endif
 
 #ifdef CONFIG_WAPI_SUPPORT
 #ifndef IW_AUTH_WAPI_VERSION_1
