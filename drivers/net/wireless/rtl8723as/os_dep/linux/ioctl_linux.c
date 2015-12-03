@@ -913,7 +913,7 @@ _func_enter_;
 			
 		      _rtw_memcpy(&(psecuritypriv->dot11DefKey[wep_key_idx].skey[0]), pwep->KeyMaterial, pwep->KeyLength);
 			psecuritypriv->dot11DefKeylen[wep_key_idx]=pwep->KeyLength;	
-			rtw_set_key(padapter, psecuritypriv, wep_key_idx, 0);
+			rtw_set_key(padapter, psecuritypriv, wep_key_idx, 0,_TRUE);
 		}
 
 		goto exit;		
@@ -959,7 +959,7 @@ _func_enter_;
 					//DEBUG_ERR((" param->u.crypt.key_len=%d\n",param->u.crypt.key_len));
 					DBG_871X(" ~~~~set sta key:unicastkey\n");
 					
-					rtw_setstakey_cmd(padapter, (unsigned char *)psta, _TRUE);
+					rtw_setstakey_cmd(padapter, (unsigned char *)psta, _TRUE, _TRUE);
 				}
 				else//group key
 				{ 					
@@ -979,7 +979,7 @@ _func_enter_;
 	
 						padapter->securitypriv.dot118021XGrpKeyid = param->u.crypt.idx;
 	
-						rtw_set_key(padapter,&padapter->securitypriv,param->u.crypt.idx, 1);
+						rtw_set_key(padapter,&padapter->securitypriv,param->u.crypt.idx, 1,_TRUE);
 					}
 #ifdef CONFIG_IEEE80211W
 					else if(strcmp(param->u.crypt.alg, "BIP") == 0)
@@ -1434,7 +1434,7 @@ static int rtw_wx_set_mode(struct net_device *dev, struct iw_request_info *a,
 		case IW_MODE_MASTER:		
 			networkType = Ndis802_11APMode;
 			DBG_871X("set_mode = IW_MODE_MASTER\n");
-                        //rtw_setopmode_cmd(padapter, networkType);	
+                        //rtw_setopmode_cmd(padapter, networkType,_TRUE);	
 			break;				
 		case IW_MODE_INFRA:
 			networkType = Ndis802_11Infrastructure;
@@ -1450,11 +1450,11 @@ static int rtw_wx_set_mode(struct net_device *dev, struct iw_request_info *a,
 /*	
 	if(Ndis802_11APMode == networkType)
 	{
-		rtw_setopmode_cmd(padapter, networkType);
+		rtw_setopmode_cmd(padapter, networkType,_TRUE);
 	}	
 	else
 	{
-		rtw_setopmode_cmd(padapter, Ndis802_11AutoUnknown);	
+		rtw_setopmode_cmd(padapter, Ndis802_11AutoUnknown,_TRUE);	
 	}
 */
 	
@@ -1465,7 +1465,7 @@ static int rtw_wx_set_mode(struct net_device *dev, struct iw_request_info *a,
 
 	}
 
-	rtw_setopmode_cmd(padapter, networkType);
+	rtw_setopmode_cmd(padapter, networkType,_TRUE);
 
 exit:
 	
@@ -6556,7 +6556,7 @@ static int rtw_p2p_get2(struct net_device *dev,
 bad:
 	if (buffer)
 	{
-		_rtw_mfree(buffer, length);
+		rtw_mfree(buffer, length);
 	}
 
 #endif //CONFIG_P2P
@@ -7311,10 +7311,10 @@ static int rtw_dbg_port(struct net_device *dev,
 					DBG_871X("rtw driver version=%s\n", DRIVERVERSION);
 					break;
 				case 0x11:
-					{						
+					{
 						DBG_871X("turn %s Rx RSSI display function\n",(extra_arg==1)?"on":"off");
-						padapter->bRxRSSIDisplay = extra_arg ;		
-						rtw_hal_set_def_var(padapter, HW_DEF_FA_CNT_DUMP,&extra_arg);	
+						padapter->bRxRSSIDisplay = extra_arg;
+						rtw_hal_set_def_var(padapter, HW_DEF_FA_CNT_DUMP, &(padapter->bRxRSSIDisplay));
 					}
 					break;
 				case 0x12: //set rx_stbc
@@ -7356,29 +7356,11 @@ static int rtw_dbg_port(struct net_device *dev,
 				case 0x16:
 				{
 					if(arg == 0xff){
-						printk("ODM_COMP_DIG\t\tBIT0\n");
-						printk("ODM_COMP_RA_MASK\t\tBIT1\n");
-						printk("ODM_COMP_DYNAMIC_TXPWR\tBIT2\n");
-						printk("ODM_COMP_FA_CNT\t\tBIT3\n");
-						printk("ODM_COMP_RSSI_MONITOR\tBIT4\n");
-						printk("ODM_COMP_CCK_PD\t\tBIT5\n");
-						printk("ODM_COMP_ANT_DIV\t\tBIT6\n");
-						printk("ODM_COMP_PWR_SAVE\t\tBIT7\n");
-						printk("ODM_COMP_PWR_TRAIN\tBIT8\n");
-						printk("ODM_COMP_RATE_ADAPTIVE\tBIT9\n");
-						printk("ODM_COMP_PATH_DIV\t\tBIT10\n");
-						printk("ODM_COMP_PSD	\tBIT11\n");
-						printk("ODM_COMP_DYNAMIC_PRICCA\tBIT12\n");
-						printk("ODM_COMP_RXHP\t\tBIT13\n");
-						printk("ODM_COMP_EDCA_TURBO\tBIT16\n");
-						printk("ODM_COMP_EARLY_MODE\tBIT17\n");
-						printk("ODM_COMP_TX_PWR_TRACK\tBIT24\n");
-						printk("ODM_COMP_RX_GAIN_TRACK\tBIT25\n");
-						printk("ODM_COMP_CALIBRATION\tBIT26\n");						
-						rtw_hal_get_def_var(padapter, HW_DEF_ODM_DBG_FLAG,&extra_arg);	
+						rtw_odm_dbg_comp_msg(padapter);
 					}
 					else{
-						rtw_hal_set_def_var(padapter, HW_DEF_ODM_DBG_FLAG,&extra_arg);	
+						u64 dbg_comp = (u64)extra_arg;
+						rtw_odm_dbg_comp_set(padapter, dbg_comp);
 					}
 				}
 					break;
@@ -9075,6 +9057,101 @@ FREE_EXT:
 	
 }
 
+#ifdef CONFIG_WOWLAN
+static int rtw_wowlan_ctrl(struct net_device *dev,
+						struct iw_request_info *info,
+						union iwreq_data *wrqu, char *extra)
+{
+	_adapter *padapter =  (_adapter *)rtw_netdev_priv(dev);
+	struct wowlan_ioctl_param poidparam;
+	struct pwrctrl_priv *pwrctrlpriv = adapter_to_pwrctl(padapter);
+	struct mlme_priv *pmlmepriv = &padapter->mlmepriv;
+	struct sta_info	*psta = NULL;
+	int ret = 0;
+	u32 start_time = rtw_get_current_time();
+	poidparam.subcode = 0;
+
+	DBG_871X("+rtw_wowlan_ctrl: %s\n", extra);
+	
+	if(pwrctrlpriv->bSupportRemoteWakeup==_FALSE){
+		ret = -EPERM;
+		DBG_871X("+rtw_wowlan_ctrl: Device didn't support the remote wakeup!!\n");
+		goto _rtw_wowlan_ctrl_exit_free;
+	}
+
+	if (!check_fwstate(pmlmepriv, _FW_LINKED) && 
+			check_fwstate(pmlmepriv, WIFI_STATION_STATE)) {
+			DBG_871X("[%s] WARNING: Please Connect With AP First!!\n", __func__);
+			goto _rtw_wowlan_ctrl_exit_free;
+	}
+
+	if (_rtw_memcmp( extra, "enable", 6 )) {
+		
+		while (pwrctrlpriv->bips_processing == _TRUE)
+			rtw_msleep_os(1);
+
+		rtw_cancel_all_timer(padapter);
+
+		padapter->bDriverStopped = _TRUE;	//for stop thread
+		rtw_stop_drv_threads(padapter);
+		padapter->bDriverStopped = _FALSE;	//for 32k command
+
+#ifdef CONFIG_LPS
+		rtw_set_ps_mode(padapter, PS_MODE_ACTIVE, 0, 0);
+#endif
+		rtw_hal_disable_interrupt(padapter); // It need wait for leaving 32K.
+
+		// 2.1 clean interupt
+		if (padapter->HalFunc.clear_interrupt)
+			padapter->HalFunc.clear_interrupt(padapter);
+
+		poidparam.subcode = WOWLAN_ENABLE;
+
+		rtw_hal_set_hwreg(padapter,HW_VAR_WOWLAN,(u8 *)&poidparam);
+	} else if (_rtw_memcmp( extra, "disable", 6 )) {
+#ifdef CONFIG_LPS
+		rtw_set_ps_mode(padapter, PS_MODE_ACTIVE, 0, 0);
+#endif //CONFIG_LPS
+		pwrctrlpriv->bFwCurrentInPSMode = _FALSE;
+
+		rtw_hal_disable_interrupt(padapter);
+
+		if (padapter->HalFunc.clear_interrupt)
+			padapter->HalFunc.clear_interrupt(padapter);
+
+		poidparam.subcode = WOWLAN_DISABLE;
+
+		rtw_hal_set_hwreg(padapter,HW_VAR_WOWLAN,(u8 *)&poidparam);
+
+		psta = rtw_get_stainfo(&padapter->stapriv, get_bssid(&padapter->mlmepriv));
+		if (psta) {
+			set_sta_rate(padapter, psta);
+		}
+
+		padapter->bDriverStopped = _FALSE;
+		DBG_871X("%s: wowmode resuming, DriverStopped:%d\n", __func__, padapter->bDriverStopped);
+		rtw_start_drv_threads(padapter);
+
+		rtw_hal_enable_interrupt(padapter);
+
+		_set_timer(&padapter->mlmepriv.dynamic_chk_timer, 2000);
+		pwrctrlpriv->bips_processing = _FALSE;
+		rtw_set_pwr_state_check_timer(pwrctrlpriv);
+
+	} else {
+		DBG_871X("[%s] Invalid Parameter.\n", __func__);
+		goto _rtw_wowlan_ctrl_exit_free;
+	}
+	//mutex_lock(&ioctl_mutex);
+_rtw_wowlan_ctrl_exit_free:
+	DBG_871X("-rtw_wowlan_ctrl( subcode = %d)\n", poidparam.subcode);
+	DBG_871X_LEVEL(_drv_always_, "%s in %d ms\n", __func__,
+			rtw_get_passing_time_ms(start_time));
+_rtw_wowlan_ctrl_exit:
+	return ret;
+}
+#endif //CONFIG_WOWLAN
+
 static int rtw_pm_set(struct net_device *dev,
                                struct iw_request_info *info,
                                union iwreq_data *wrqu, char *extra)
@@ -9132,13 +9209,13 @@ static int rtw_mp_efuse_get(struct net_device *dev,
 	pEfuseHal = &pHalData->EfuseHal;
 
 	err = 0;
-	data = _rtw_zmalloc(EFUSE_BT_MAX_MAP_LEN);
+	data = rtw_zmalloc(EFUSE_BT_MAX_MAP_LEN);
 	if (data == NULL)
 	{
 		err = -ENOMEM;
 		goto exit;
 	}
-	rawdata = _rtw_zmalloc(EFUSE_BT_MAX_MAP_LEN);
+	rawdata = rtw_zmalloc(EFUSE_BT_MAX_MAP_LEN);
 	if (rawdata == NULL)
 	{
 		err = -ENOMEM;
@@ -9658,9 +9735,9 @@ static int rtw_mp_efuse_get(struct net_device *dev,
 
 exit:
 	if (data)
-		_rtw_mfree(data, EFUSE_BT_MAX_MAP_LEN);
+		rtw_mfree(data, EFUSE_BT_MAX_MAP_LEN);
 	if (rawdata)
-		_rtw_mfree(rawdata, EFUSE_BT_MAX_MAP_LEN);
+		rtw_mfree(rawdata, EFUSE_BT_MAX_MAP_LEN);
 	if (!err)
 		wrqu->length = strlen(extra);
 	
@@ -9703,25 +9780,25 @@ static int rtw_mp_efuse_set(struct net_device *dev,
 	pHalData = GET_HAL_DATA(padapter);
 	pEfuseHal = &pHalData->EfuseHal;
 	err = 0;
-	setdata = _rtw_zmalloc(1024);
+	setdata = rtw_zmalloc(1024);
 	if (setdata == NULL)
 	{
 		err = -ENOMEM;
 		goto exit;
 	}
-	ShadowMapBT = _rtw_malloc(EFUSE_BT_MAX_MAP_LEN);
+	ShadowMapBT = rtw_malloc(EFUSE_BT_MAX_MAP_LEN);
 	if (ShadowMapBT == NULL)
 	{
 		err = -ENOMEM;
 		goto exit;
 	}
-	ShadowMapWiFi = _rtw_malloc(EFUSE_MAP_SIZE);
+	ShadowMapWiFi = rtw_malloc(EFUSE_MAP_SIZE);
 	if (ShadowMapWiFi == NULL)
 	{
 		err = -ENOMEM;
 		goto exit;
 	}
-	setrawdata = _rtw_malloc(EFUSE_MAX_SIZE);
+	setrawdata = rtw_malloc(EFUSE_MAX_SIZE);
 	if (setrawdata == NULL)
 	{
 		err = -ENOMEM;
@@ -10160,13 +10237,13 @@ static int rtw_mp_efuse_set(struct net_device *dev,
 
 exit:
 	if (setdata)
-		_rtw_mfree(setdata, 1024);
+		rtw_mfree(setdata, 1024);
 	if (ShadowMapBT)
-		_rtw_mfree(ShadowMapBT, EFUSE_BT_MAX_MAP_LEN);
+		rtw_mfree(ShadowMapBT, EFUSE_BT_MAX_MAP_LEN);
 	if (ShadowMapWiFi)
-		_rtw_mfree(ShadowMapWiFi, EFUSE_MAP_SIZE);
+		rtw_mfree(ShadowMapWiFi, EFUSE_MAP_SIZE);
 	if (setrawdata)
-		_rtw_mfree(setrawdata, EFUSE_MAX_SIZE);
+		rtw_mfree(setrawdata, EFUSE_MAX_SIZE);
 	
 	#ifdef CONFIG_IPS		
 	rtw_pm_set_ips(padapter, ips_mode);
@@ -11754,7 +11831,13 @@ static int rtw_mp_set(struct net_device *dev,
 	case MP_DISABLE_BT_COEXIST:
 			DBG_871X("set case MP_DISABLE_BT_COEXIST \n");
 			rtw_mp_disable_bt_coexist(dev, info, wdata, extra);
-		break;
+	break;
+#ifdef CONFIG_WOWLAN
+	case MP_WOW_ENABLE:
+			DBG_871X("set case MP_WOW_ENABLE: %s \n", extra);
+			rtw_wowlan_ctrl(dev, info, wdata, extra);
+	break;
+#endif
 	}
 
 	  
@@ -12638,7 +12721,7 @@ static s32 initpseudoadhoc(PADAPTER padapter)
 	err = rtw_set_802_11_infrastructure_mode(padapter, networkType);
 	if (err == _FALSE) return _FAIL;
 
-	err = rtw_setopmode_cmd(padapter, networkType);
+	err = rtw_setopmode_cmd(padapter, networkType,_TRUE);
 	if (err == _FAIL) return _FAIL;
 
 	return _SUCCESS;
@@ -13485,11 +13568,6 @@ static const struct iw_priv_args rtw_private_args[] = {
 		SIOCIWFIRSTPRIV + 0xD,
 		IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 2, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_FIXED | IFNAMSIZ, "rfr"
 	},
-#if 0
-	{
-		SIOCIWFIRSTPRIV + 0xE,0,0, "wowlan_ctrl"
-	},
-#endif
 	{
 		SIOCIWFIRSTPRIV + 0x10,
 		IW_PRIV_TYPE_CHAR | 1024, 0, "p2p_set"
@@ -13577,6 +13655,9 @@ static const struct iw_priv_args rtw_private_args[] = {
 		{ MP_DISABLE_BT_COEXIST, IW_PRIV_TYPE_CHAR | 1024, 0, "mp_disa_btcoex"},
 #endif
 		{ CTA_TEST, IW_PRIV_TYPE_CHAR | 1024, 0, "cta_test"},
+#endif
+#ifdef CONFIG_WOWLAN
+		{ MP_WOW_ENABLE , IW_PRIV_TYPE_CHAR | 1024, 0, "wow_enable" }, //set 
 #endif
 };
 

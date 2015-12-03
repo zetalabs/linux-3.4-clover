@@ -3234,14 +3234,14 @@ int rtw_br_client_tx(_adapter *padapter, struct sk_buff **pskb)
 						*((unsigned short *)(skb->data+MACADDRLEN*2+2)) = vlan_hdr;
 					}
 
-					newskb = skb_copy(skb, GFP_ATOMIC);
+					newskb = rtw_skb_copy(skb);
 					if (newskb == NULL) {
 						//priv->ext_stats.tx_drops++;
-						DEBUG_ERR("TX DROP: skb_copy fail!\n");
+						DEBUG_ERR("TX DROP: rtw_skb_copy fail!\n");
 						//goto stop_proc;
 						return -1;
 					}
-					dev_kfree_skb_any(skb);
+					rtw_skb_free(skb);
 
 					*pskb = skb = newskb;
 					if (is_vlan_tag) {
@@ -4381,13 +4381,13 @@ int rtw_ack_tx_polling(struct xmit_priv *pxmitpriv, u32 timeout_ms)
 }
 #endif
 
-#ifdef CONFIG_DETECT_CPWM_AND_C2H_BY_POLLING
+#ifdef CONFIG_DETECT_C2H_BY_POLLING
 s32 c2h_evt_hdl(_adapter *adapter, struct c2h_evt_hdr *c2h_evt, c2h_id_filter filter);
 #endif
 
 int rtw_ack_tx_wait(struct xmit_priv *pxmitpriv, u32 timeout_ms)
 {
-#ifdef CONFIG_DETECT_CPWM_AND_C2H_BY_POLLING
+#ifdef CONFIG_DETECT_C2H_BY_POLLING
 	_adapter *adapter = container_of(pxmitpriv, _adapter, xmitpriv);
 	c2h_id_filter ccx_id_filter = rtw_hal_c2h_id_filter_ccx(adapter);
 	struct submit_ctx *pack_tx_ops = &pxmitpriv->ack_tx_ops;
@@ -4401,8 +4401,11 @@ int rtw_ack_tx_wait(struct xmit_priv *pxmitpriv, u32 timeout_ms)
 
 	do {
 		rtw_msleep_os(10);
-		check_c2hcmd = rtw_read8(adapter, 0x1AF);
-		check_ccx = rtw_read8(adapter, 0x1A0);
+		//check_c2hcmd = rtw_read8(adapter, 0x1AF);
+		//check_ccx = rtw_read8(adapter, 0x1A0);
+		rtw_hal_get_hwreg(adapter, HW_VAR_C2HEVT_CLEAR, (u8 *)(&check_c2hcmd));
+		rtw_hal_get_hwreg(adapter, HW_VAR_C2HEVT_MSG_NORMAL, (u8 *)(&check_ccx));
+
 		
 		if (check_c2hcmd != 0)
 		{

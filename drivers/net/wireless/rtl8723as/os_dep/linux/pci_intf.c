@@ -1531,7 +1531,7 @@ static void pci_intf_stop(_adapter *padapter)
 }
 
 
-static void rtw_dev_unload(_adapter *padapter)
+void rtw_dev_unload(_adapter *padapter)
 {
 	struct net_device *pnetdev= (struct net_device*)padapter->pnetdev;
 
@@ -1991,6 +1991,8 @@ static void __exit rtw_drv_halt(void)
 	rtw_suspend_lock_uninit();	
 	
 	DBG_871X("-rtw_drv_halt\n");
+
+	rtw_mstat_dump();
 }
 
 

@@ -81,6 +81,7 @@ typedef struct _ADAPTER _adapter, ADAPTER,*PADAPTER;
 #include <rtw_p2p.h>
 #include <rtw_tdls.h>
 #include <rtw_ap.h>
+#include <rtw_odm.h>
 
 #ifdef CONFIG_WAPI_SUPPORT
 #include <rtw_wapi.h>
@@ -594,6 +595,7 @@ struct _ADAPTER{
 	struct net_device_stats stats;
 	struct iw_statistics iwstats;
 	struct proc_dir_entry *dir_dev;// for proc directory
+	struct proc_dir_entry *dir_odm;
 
 #ifdef CONFIG_IOCTL_CFG80211
 	struct wireless_dev *rtw_wdev;

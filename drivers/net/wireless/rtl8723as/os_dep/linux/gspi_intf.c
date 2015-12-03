@@ -331,7 +331,7 @@ static void gspi_intf_stop(PADAPTER padapter)
 /*
  * Do deinit job corresponding to netdev_open()
  */
-static void rtw_dev_unload(PADAPTER padapter)
+void rtw_dev_unload(PADAPTER padapter)
 {
 	struct net_device *pnetdev = (struct net_device*)padapter->pnetdev;
 	struct mlme_priv *pmlmepriv = &padapter->mlmepriv;
@@ -938,6 +938,8 @@ static void __exit rtw_drv_halt(void)
 	rtw_suspend_lock_uninit();
 	DBG_8192C("RTW: rtw_drv_halt enter\n");
 	RT_TRACE(_module_hci_intfs_c_, _drv_notice_, ("-rtw_drv_halt\n"));
+
+	rtw_mstat_dump();
 }
 module_init(rtw_drv_entry);
 module_exit(rtw_drv_halt);

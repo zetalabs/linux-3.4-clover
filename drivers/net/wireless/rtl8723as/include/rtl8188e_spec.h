@@ -1626,7 +1626,8 @@ Current IOREG MAP
 #define	EEPROM_RF_ANTENNA_OPT_88E			0xC9
 
 #ifdef CONFIG_RF_GAIN_OFFSET
-#define	EEPROM_RF_GAIN_OFFSET_88E			0xFD
+#define	EEPROM_RF_GAIN_OFFSET_88E			0xC1
+#define	EEPROM_RF_GAIN_VAL_88E				0xF6 //Physical address which is the BB gain offset value
 #endif //CONFIG_RF_GAIN_OFFSET
 
 // RTL88EE

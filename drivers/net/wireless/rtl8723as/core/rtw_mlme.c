@@ -119,7 +119,7 @@ static void rtw_free_mlme_ie_data(u8 **ppie, u32 *plen)
 {
 	if(*ppie)
 	{		
-		_rtw_mfree(*ppie, *plen);
+		rtw_mfree(*ppie, *plen);
 		*plen = 0;
 		*ppie=NULL;
 	}	
@@ -1463,6 +1463,32 @@ _func_enter_;
 	if(pwlan)		
 	{
 		pwlan->fixed = _FALSE;
+#ifdef CONFIG_P2P
+		if(!rtw_p2p_chk_state(&adapter->wdinfo, P2P_STATE_NONE))
+		{
+			u32 p2p_ielen=0;
+			u8  *p2p_ie;
+			//u16 capability;
+			u8 *pcap = NULL;
+			u32 capability_len=0;
+
+			//DBG_871X("free disconnecting network\n");
+			//rtw_free_network_nolock(pmlmepriv, pwlan);
+
+			if((p2p_ie=rtw_get_p2p_ie(pwlan->network.IEs+_FIXED_IE_LENGTH_, pwlan->network.IELength-_FIXED_IE_LENGTH_, NULL, &p2p_ielen)))
+			{
+				pcap = rtw_get_p2p_attr_content(p2p_ie, p2p_ielen, P2P_ATTR_CAPABILITY, NULL, &capability_len);
+				if(pcap && capability_len==2)
+				{
+					u16 cap = *(u16*)pcap ;
+					*(u16*)pcap = cap&0x00ff;//clear group capability when free this network
+				}
+			}
+
+			rtw_set_scan_deny(adapter, 2000);
+			//rtw_clear_scan_deny(adapter);
+		}
+#endif //CONFIG_P2P
 	}	
 	else
 	{
@@ -1634,7 +1660,7 @@ void rtw_scan_abort(_adapter *adapter)
 	if (check_fwstate(pmlmepriv, _FW_UNDER_SURVEY)) {
 		if (!adapter->bDriverStopped && !adapter->bSurpriseRemoved)
 			DBG_871X(FUNC_NDEV_FMT"waiting for scan_abort time out!\n", FUNC_NDEV_ARG(adapter->pnetdev));
-		#ifdef CONFIG_PLATFORM_MSTAR_TITANIA12	
+		#ifdef CONFIG_PLATFORM_MSTAR
 		//_clr_fwstate_(pmlmepriv, _FW_UNDER_SURVEY);
 		set_survey_timer(pmlmeext, 0);
 		_set_timer(&pmlmepriv->scan_to_timer, 50);
@@ -1961,15 +1987,16 @@ _func_enter_;
 			}
 
 			//s4. indicate connect			
-				if(check_fwstate(pmlmepriv, WIFI_STATION_STATE) == _TRUE)
-				{
-					rtw_indicate_connect(adapter);
-				}
-				else
-				{
-					//adhoc mode will rtw_indicate_connect when rtw_stassoc_event_callback
-					RT_TRACE(_module_rtl871x_mlme_c_,_drv_info_,("adhoc mode, fw_state:%x", get_fwstate(pmlmepriv)));
-				}
+			if(check_fwstate(pmlmepriv, WIFI_STATION_STATE) == _TRUE)
+			{
+				pmlmepriv->cur_network_scanned = ptarget_wlan;
+				rtw_indicate_connect(adapter);
+			}
+			else
+			{
+				//adhoc mode will rtw_indicate_connect when rtw_stassoc_event_callback
+				RT_TRACE(_module_rtl871x_mlme_c_,_drv_info_,("adhoc mode, fw_state:%x", get_fwstate(pmlmepriv)));
+			}
 
 				
 			//s5. Cancle assoc_timer					
@@ -2165,7 +2192,7 @@ _func_enter_;
 					assoc_req_len = psta->assoc_req_len;
 					_rtw_memcpy(passoc_req, psta->passoc_req, assoc_req_len);
 					
-					_rtw_mfree(psta->passoc_req , psta->assoc_req_len);
+					rtw_mfree(psta->passoc_req , psta->assoc_req_len);
 					psta->passoc_req = NULL;
 					psta->assoc_req_len = 0;
 				}
@@ -2176,7 +2203,7 @@ _func_enter_;
 			{
 				rtw_cfg80211_indicate_sta_assoc(adapter, passoc_req, assoc_req_len);
 		
-				_rtw_mfree(passoc_req, assoc_req_len);
+				rtw_mfree(passoc_req, assoc_req_len);
 			}			
 #else //!CONFIG_IOCTL_CFG80211	
 			rtw_indicate_sta_assoc_event(adapter, psta);
@@ -2243,7 +2270,7 @@ _func_enter_;
 	
 #ifdef CONFIG_RTL8711
 	//submit SetStaKey_cmd to tell fw, fw will allocate an CAM entry for this sta	
-	rtw_setstakey_cmd(adapter, (unsigned char*)psta, _FALSE);
+	rtw_setstakey_cmd(adapter, (unsigned char*)psta, _FALSE, _TRUE);
 #endif
 		
 exit:
@@ -2303,7 +2330,9 @@ _func_enter_;
 	if(check_fwstate(pmlmepriv, WIFI_STATION_STATE) )
 	{
 		#ifdef CONFIG_LAYER2_ROAMING
-		if (rtw_to_roaming(adapter) > 0)
+		if(adapter->registrypriv.wifi_spec==1)		
+			rtw_set_roaming(adapter, 0); /* don't roam */		
+		else if (rtw_to_roaming(adapter) > 0)
 			pmlmepriv->to_roaming--; /* this stadel_event is caused by roaming, decrease to_roaming */
 		else if (rtw_to_roaming(adapter) == 0)
 			rtw_set_roaming(adapter, adapter->registrypriv.max_roaming_times);
@@ -2733,7 +2762,7 @@ void rtw_set_scan_deny(_adapter *adapter, u32 ms)
 }
 #endif
 
-#ifdef CONFIG_DETECT_CPWM_AND_C2H_BY_POLLING
+#ifdef CONFIG_DETECT_C2H_BY_POLLING
 void rtw_event_polling_timer_hdl(_adapter *adapter)
 {	
 	rtw_event_polling_cmd(adapter);
@@ -3203,7 +3232,7 @@ _func_exit_;
 }
 
 
-sint rtw_set_key(_adapter * adapter,struct security_priv *psecuritypriv,sint keyid, u8 set_tx)
+sint rtw_set_key(_adapter * adapter,struct security_priv *psecuritypriv,sint keyid, u8 set_tx, bool enqueue)
 {
 	u8	keylen;
 	struct cmd_obj		*pcmd;
@@ -3213,19 +3242,12 @@ sint rtw_set_key(_adapter * adapter,struct security_priv *psecuritypriv,sint key
 	sint	res=_SUCCESS;
 	
 _func_enter_;
-	
-	pcmd = (struct	cmd_obj*)rtw_zmalloc(sizeof(struct	cmd_obj));
-	if(pcmd==NULL){
-		res= _FAIL;  //try again
-		goto exit;
-	}
+
 	psetkeyparm=(struct setkey_parm*)rtw_zmalloc(sizeof(struct setkey_parm));
-	if(psetkeyparm==NULL){
-		rtw_mfree((unsigned char *)pcmd, sizeof(struct	cmd_obj));
+	if(psetkeyparm==NULL){		
 		res= _FAIL;
 		goto exit;
 	}
-
 	_rtw_memset(psetkeyparm, 0, sizeof(struct setkey_parm));
 
 	if(psecuritypriv->dot11AuthAlgrthm ==dot11AuthAlgrthm_8021X){		
@@ -3246,7 +3268,7 @@ _func_enter_;
 	RT_TRACE(_module_rtl871x_mlme_c_,_drv_err_,("\n rtw_set_key: psetkeyparm->algorithm=%d psetkeyparm->keyid=(u8)keyid=%d \n",psetkeyparm->algorithm, keyid));
 
 	switch(psetkeyparm->algorithm){
-		
+			
 		case _WEP40_:
 			keylen=5;
 			_rtw_memcpy(&(psetkeyparm->key[0]), &(psecuritypriv->dot11DefKey[keyid].skey[0]), keylen);
@@ -3268,23 +3290,35 @@ _func_enter_;
 		default:
 			RT_TRACE(_module_rtl871x_mlme_c_,_drv_err_,("\n rtw_set_key:psecuritypriv->dot11PrivacyAlgrthm = %x (must be 1 or 2 or 4 or 5)\n",psecuritypriv->dot11PrivacyAlgrthm));
 			res= _FAIL;
+			rtw_mfree((unsigned char *)psetkeyparm, sizeof(struct setkey_parm));
 			goto exit;
 	}
+		
+		
+	if(enqueue){
+		pcmd = (struct	cmd_obj*)rtw_zmalloc(sizeof(struct	cmd_obj));
+		if(pcmd==NULL){
+			rtw_mfree((unsigned char *)psetkeyparm, sizeof(struct setkey_parm));
+			res= _FAIL;  //try again
+			goto exit;
+		}
+		
+		pcmd->cmdcode = _SetKey_CMD_;
+		pcmd->parmbuf = (u8 *)psetkeyparm;   
+		pcmd->cmdsz =  (sizeof(struct setkey_parm));  
+		pcmd->rsp = NULL;
+		pcmd->rspsz = 0;
 
-	
-	pcmd->cmdcode = _SetKey_CMD_;
-	pcmd->parmbuf = (u8 *)psetkeyparm;   
-	pcmd->cmdsz =  (sizeof(struct setkey_parm));  
-	pcmd->rsp = NULL;
-	pcmd->rspsz = 0;
+		_rtw_init_listhead(&pcmd->list);
 
+		//_rtw_init_sema(&(pcmd->cmd_sem), 0);
 
-	_rtw_init_listhead(&pcmd->list);
-
-	//_rtw_init_sema(&(pcmd->cmd_sem), 0);
-
-	res = rtw_enqueue_cmd(pcmdpriv, pcmd);
-
+		res = rtw_enqueue_cmd(pcmdpriv, pcmd);
+	}
+	else{
+		setkey_hdl(adapter, (u8 *)psetkeyparm);
+		rtw_mfree((u8 *) psetkeyparm, sizeof(struct setkey_parm));
+	}
 exit:
 _func_exit_;
 	return res;

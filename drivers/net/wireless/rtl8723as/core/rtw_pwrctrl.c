@@ -355,7 +355,7 @@ void rtw_set_rpwm(PADAPTER padapter, u8 pslv)
 {
 	u8	rpwm;
 	struct pwrctrl_priv *pwrpriv = adapter_to_pwrctl(padapter);
-#ifdef CONFIG_DETECT_CPWM_AND_C2H_BY_POLLING
+#ifdef CONFIG_DETECT_CPWM_BY_POLLING
 	u8 cpwm_orig = 0;
 	u8 cpwm_now = 0;
 	u32 cpwm_polling_start_time = 0;
@@ -430,17 +430,18 @@ _func_enter_;
 
 	pwrpriv->rpwm = pslv;
 
-#ifdef CONFIG_DETECT_CPWM_AND_C2H_BY_POLLING
+#ifdef CONFIG_DETECT_CPWM_BY_POLLING
 	if (rpwm & PS_ACK)
 	{
-		cpwm_orig = rtw_read8(padapter, SDIO_LOCAL_BASE | SDIO_REG_HCPWM1);
+		//cpwm_orig = rtw_read8(padapter, SDIO_LOCAL_BASE | SDIO_REG_HCPWM1);
+		rtw_hal_get_hwreg(padapter, HW_VAR_GET_CPWM, (u8 *)(&cpwm_orig));
 	}
 #endif	
 
-#if defined(CONFIG_LPS_RPWM_TIMER) && !defined(CONFIG_DETECT_CPWM_AND_C2H_BY_POLLING)
+#if defined(CONFIG_LPS_RPWM_TIMER) && !defined(CONFIG_DETECT_CPWM_BY_POLLING)
 	if (rpwm & PS_ACK)
 		_set_timer(&pwrpriv->pwr_rpwm_timer, LPS_RPWM_WAIT_MS);
-#endif // CONFIG_LPS_RPWM_TIMER && !CONFIG_DETECT_CPWM_AND_C2H_BY_POLLING
+#endif // CONFIG_LPS_RPWM_TIMER && !CONFIG_DETECT_CPWM_BY_POLLING
 	rtw_hal_set_hwreg(padapter, HW_VAR_SET_RPWM, (u8 *)(&rpwm));
 
 	pwrpriv->tog += 0x80;
@@ -453,21 +454,26 @@ _func_enter_;
 		pwrpriv->cpwm = pslv;
 	}
 
-#ifdef CONFIG_DETECT_CPWM_AND_C2H_BY_POLLING
+#ifdef CONFIG_DETECT_CPWM_BY_POLLING
 	if (rpwm & PS_ACK)
 	{
 		cpwm_polling_start_time = rtw_get_current_time();
 
 		//polling cpwm
 		do{
-			rtw_msleep_os(1);
+			rtw_mdelay_os(1);
 			
-			cpwm_now = rtw_read8(padapter, SDIO_LOCAL_BASE | SDIO_REG_HCPWM1);
+			//cpwm_now = rtw_read8(padapter, SDIO_LOCAL_BASE | SDIO_REG_HCPWM1);
+			rtw_hal_get_hwreg(padapter, HW_VAR_GET_CPWM, (u8 *)(&cpwm_now));
 			if ((cpwm_orig ^ cpwm_now) & 0x80)
 			{
 #ifdef CONFIG_LPS_LCLK
+				#ifdef CONFIG_RTL8723A
 				pwrpriv->cpwm = PS_STATE(cpwm_now);
-                                pwrpriv->cpwm_tog = cpwm_now & PS_TOGGLE;
+				#else // !CONFIG_RTL8723A
+				pwrpriv->cpwm = PS_STATE_S4;
+				#endif // !CONFIG_RTL8723A
+                          pwrpriv->cpwm_tog = cpwm_now & PS_TOGGLE;
 #endif
 				pollingRes = _SUCCESS;
 				break;
@@ -494,6 +500,15 @@ u8 PS_RDY_CHECK(_adapter * padapter)
 	struct pwrctrl_priv	*pwrpriv = adapter_to_pwrctl(padapter);
 	struct mlme_priv	*pmlmepriv = &(padapter->mlmepriv);
 
+#ifdef CONFIG_WOWLAN
+	if(_TRUE == pwrpriv->bInSuspend && pwrpriv->wowlan_mode)
+		return _TRUE;
+	else if (_TRUE == pwrpriv->bInSuspend)
+		return _FALSE;
+#else
+	if(_TRUE == pwrpriv->bInSuspend )
+		return _FALSE;
+#endif
 
 	curr_time = rtw_get_current_time();	
 	delta_time = curr_time -pwrpriv->DelayLPSLastTimeStamp;
@@ -505,24 +520,18 @@ u8 PS_RDY_CHECK(_adapter * padapter)
 
 	if ((check_fwstate(pmlmepriv, _FW_LINKED) == _FALSE) ||
 		(check_fwstate(pmlmepriv, _FW_UNDER_SURVEY) == _TRUE) ||
+		(check_fwstate(pmlmepriv, WIFI_UNDER_WPS) == _TRUE) ||
 		(check_fwstate(pmlmepriv, WIFI_AP_STATE) == _TRUE) ||
 		(check_fwstate(pmlmepriv, WIFI_ADHOC_MASTER_STATE) == _TRUE) ||
 		(check_fwstate(pmlmepriv, WIFI_ADHOC_STATE) == _TRUE) )
 		return _FALSE;
-#ifdef CONFIG_WOWLAN
-	if(_TRUE == pwrpriv->bInSuspend && pwrpriv->wowlan_mode)
-		return _TRUE;
-	else if (_TRUE == pwrpriv->bInSuspend)
-		return _FALSE;
-#else
-	if(_TRUE == pwrpriv->bInSuspend )
-		return _FALSE;
-#endif
+
 	if( (padapter->securitypriv.dot11AuthAlgrthm == dot11AuthAlgrthm_8021X) && (padapter->securitypriv.binstallGrpkey == _FALSE) )
 	{
 		DBG_871X("Group handshake still in progress !!!\n");
 		return _FALSE;
 	}
+
 #ifdef CONFIG_IOCTL_CFG80211
 	if (!rtw_cfg80211_pwr_mgmt(padapter))
 		return _FALSE;

@@ -283,7 +283,7 @@ _func_enter_;
 #ifdef CONFIG_BSD_RX_USE_MBUF
 		m_freem(precvframe->u.hdr.pkt);
 #else	// CONFIG_BSD_RX_USE_MBUF
-		dev_kfree_skb_any(precvframe->u.hdr.pkt);//free skb by driver
+		rtw_skb_free(precvframe->u.hdr.pkt);//free skb by driver
 #endif	// CONFIG_BSD_RX_USE_MBUF
 		precvframe->u.hdr.pkt = NULL;
 	}
@@ -740,6 +740,9 @@ _func_enter_;
 		rtw_free_recvframe(return_packet,&padapter->recvpriv.free_recv_queue);			
 		return_packet = NULL;
 		
+	}
+	else{
+		prxattrib->bdecrypted = _TRUE;
 	}
 	//recvframe_chkmic(adapter, precv_frame);   //move to recvframme_defrag function
 
@@ -2587,12 +2590,8 @@ static void recvframe_expand_pkt(
 
 	//3 1. alloc new skb
 	// prepare extra space for 4 bytes alignment
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)) // http://www.mail-archive.com/netdev@vger.kernel.org/msg17214.html
-	ppkt = dev_alloc_skb(alloc_sz);
-	if (ppkt) ppkt->dev = padapter->pnetdev;
-#else
-	ppkt = netdev_alloc_skb(padapter->pnetdev, alloc_sz);
-#endif
+	ppkt = rtw_skb_alloc(alloc_sz);
+
 	if (!ppkt) return; // no way to expand
 
 	//3 2. Prepare new skb to replace & release old skb
@@ -2604,7 +2603,7 @@ static void recvframe_expand_pkt(
 	// copy data to new pkt
 	_rtw_memcpy(skb_put(ppkt, pfhdr->len), pfhdr->rx_data, pfhdr->len);
 
-	dev_kfree_skb_any(pfhdr->pkt);
+	rtw_skb_free(pfhdr->pkt);
 
 	// attach new pkt to recvframe
 	pfhdr->pkt = ppkt;
@@ -2903,7 +2902,7 @@ int amsdu_to_msdu(_adapter *padapter, union recv_frame *prframe)
 
 		/* Allocate new skb for releasing to upper layer */
 #ifdef CONFIG_SKB_COPY
-		sub_skb = dev_alloc_skb(nSubframe_Length + 12);
+		sub_skb = rtw_skb_alloc(nSubframe_Length + 12);
 		if(sub_skb)
 		{
 			skb_reserve(sub_skb, 12);
@@ -2913,7 +2912,7 @@ int amsdu_to_msdu(_adapter *padapter, union recv_frame *prframe)
 		else
 #endif // CONFIG_SKB_COPY
 		{
-			sub_skb = skb_clone(prframe->u.hdr.pkt, GFP_ATOMIC);
+			sub_skb = rtw_skb_clone(prframe->u.hdr.pkt);
 			if(sub_skb)
 			{
 				sub_skb->data = pdata;
@@ -2922,7 +2921,7 @@ int amsdu_to_msdu(_adapter *padapter, union recv_frame *prframe)
 			}
 			else
 			{
-				DBG_871X("skb_clone() Fail!!! , nr_subframes = %d\n",nr_subframes);
+				DBG_871X("rtw_skb_clone() Fail!!! , nr_subframes = %d\n",nr_subframes);
 				break;
 			}
 		}
@@ -3023,7 +3022,7 @@ int amsdu_to_msdu(_adapter *padapter, union recv_frame *prframe)
 #if 1
 					// bypass this frame to upper layer!!
 #else
-					dev_kfree_skb_any(sub_skb);
+					rtw_skb_free(sub_skb);
 					continue;
 #endif
 				}							
@@ -3043,7 +3042,7 @@ int amsdu_to_msdu(_adapter *padapter, union recv_frame *prframe)
 			sub_skb->ip_summed = CHECKSUM_NONE;
 #endif //CONFIG_TCP_CSUM_OFFLOAD_RX
 
-			netif_rx(sub_skb);
+			rtw_netif_rx(padapter->pnetdev, sub_skb);
 		}
 #else //PLATFORM_FREEBSD
 
@@ -3284,11 +3283,8 @@ exit:
 
 			_rtw_init_listhead(&pnrframe_new->u.hdr.list);
 
-	#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)) // http://www.mail-archive.com/netdev@vger.kernel.org/msg17214.html
-			pskb_copy = dev_alloc_skb(copy_len+64);
-	#else
-			pskb_copy = netdev_alloc_skb(padapter->pnetdev, copy_len + 64);
-	#endif
+			pskb_copy = rtw_skb_alloc(copy_len+64);
+
 			if(pskb_copy==NULL)
 			{
 				DBG_871X("amsdu_to_msdu:can not all(ocate memory for skb copy\n");
@@ -3363,7 +3359,7 @@ exit:
 #ifdef PLATFORM_LINUX
 						if(pskb)
 						{
-							pnrframe_new->u.hdr.pkt = skb_clone(pskb, GFP_ATOMIC);
+							pnrframe_new->u.hdr.pkt = rtw_skb_clone(pskb);
 						}
 #endif //PLATFORM_LINUX
 

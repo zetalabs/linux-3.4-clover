@@ -926,8 +926,8 @@ _continue:
 
 _issue_probersp:
 
-		if(check_fwstate(pmlmepriv, _FW_LINKED) == _TRUE && 
-			pmlmepriv->cur_network.join_res == _TRUE)
+		if(((check_fwstate(pmlmepriv, _FW_LINKED) == _TRUE && 
+			pmlmepriv->cur_network.join_res == _TRUE)) || check_fwstate(pmlmepriv, WIFI_ADHOC_MASTER_STATE))
 		{
 			//DBG_871X("+issue_probersp during ap mode\n");
 			issue_probersp(padapter, get_sa(pframe), is_valid_p2p_probereq);		
@@ -1121,7 +1121,7 @@ unsigned int OnBeacon(_adapter *padapter, union recv_frame *precv_frame)
 				ret = rtw_check_bcn_info(padapter, pframe, len);
 				if (!ret) {
 						DBG_871X_LEVEL(_drv_always_, "ap has changed, disconnect now\n ");
-						receive_disconnect(padapter, pmlmeinfo->network.MacAddress , 65535);
+						receive_disconnect(padapter, pmlmeinfo->network.MacAddress , 0);
 						return _SUCCESS;
 				}
 				//update WMM, ERP in the beacon
@@ -2281,14 +2281,6 @@ unsigned int OnAssocRsp(_adapter *padapter, union recv_frame *precv_frame)
 	//Update Basic Rate Table for spec, 2010-12-28 , by thomas
 	UpdateBrateTbl(padapter, pmlmeinfo->network.SupportedRates);
 
-#ifdef CONFIG_IOCTL_CFG80211
-	if (!rtw_cfg80211_check_bss(padapter)) {
-		DBG_871X("rtw_cfg80211_check_bss() : BSS not found !!\n");
-		res = -2;
-		goto report_assoc_result;
-	}
-#endif
-
 report_assoc_result:
 	if (res > 0) {
 		rtw_buf_update(&pmlmepriv->assoc_rsp, &pmlmepriv->assoc_rsp_len, pframe, pkt_len);
@@ -2378,6 +2370,9 @@ unsigned int OnDeAuth(_adapter *padapter, union recv_frame *precv_frame)
 		{
 			if ( reason == WLAN_REASON_CLASS2_FRAME_FROM_NONAUTH_STA )
 			{
+				ignore_received_deauth = 1;
+			} else if (WLAN_REASON_PREV_AUTH_NOT_VALID == reason) {
+				// TODO: 802.11r
 				ignore_received_deauth = 1;
 			}
 		}
@@ -6885,7 +6880,7 @@ void issue_probersp(_adapter *padapter, unsigned char *da, u8 is_valid_p2p_probe
 	}	
 
 #ifdef CONFIG_P2P
-	if(rtw_p2p_chk_role(pwdinfo, P2P_ROLE_GO) && is_valid_p2p_probereq)
+	if(rtw_p2p_chk_role(pwdinfo, P2P_ROLE_GO) /*&& is_valid_p2p_probereq*/)
 	{
 		u32 len;
 #ifdef CONFIG_IOCTL_CFG80211
