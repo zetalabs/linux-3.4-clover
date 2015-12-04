@@ -68,7 +68,9 @@ static struct resource sw_ahci_resources[] = {
     },
 };
 
+#if 0
 static void sw_ahci_dump_reg(struct device *dev);
+#endif
 
 static int sw_ahci_phy_init(unsigned int base)
 {
@@ -466,7 +468,7 @@ static int __devexit sw_ahci_remove(struct platform_device *pdev)
 	return 0;
 }
 
-
+#if 0
 void sw_ahci_dump_reg(struct device *dev)
 {
 	struct ata_host *host = dev_get_drvdata(dev);
@@ -478,6 +480,7 @@ void sw_ahci_dump_reg(struct device *dev)
 		printk("0x%3x = 0x%x, 0x%3x = 0x%x, 0x%3x = 0x%x, 0x%3x = 0x%x\n", i, ahci_readl(base, i), i+4, ahci_readl(base, i+4), i+8, ahci_readl(base, i+8), i+12, ahci_readl(base, i+12));
 	}
 }
+#endif
 
 #ifdef CONFIG_PM
 

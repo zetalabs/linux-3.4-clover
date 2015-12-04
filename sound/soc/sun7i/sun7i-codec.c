@@ -333,6 +333,7 @@ static int codec_dacphoneout_open(struct snd_pcm_substream *substream)
 
 static int codec_play_open(struct snd_pcm_substream *substream)
 {
+	int max_add =0x0;     
 	//pa mute
 	codec_wr_control(SUN7I_DAC_ACTL, 0x1, PA_MUTE, 0x0);
 	codec_wr_control(SUN7I_DAC_DPC ,  0x1, DAC_EN, 0x1);
@@ -353,11 +354,10 @@ static int codec_play_open(struct snd_pcm_substream *substream)
 	codec_wr_control(SUN7I_DAC_ACTL, 0x1, 	DACAEN_R, 0x1);
 	//enable dac to pa
 	codec_wr_control(SUN7I_DAC_ACTL, 0x1, 	DACPAS, 0x1);
-	int max_add =0x0;     
 	for(max_add=0X0;max_add<=0x3b;max_add++){
 		codec_wr_control(SUN7I_DAC_ACTL, 0x3f, VOLUME, max_add);
 		usleep_range(3000,4000);
-		}
+	}
 	return 0;
 }
 
@@ -1138,7 +1138,7 @@ static int sun7i_codec_pcm_hw_params(struct snd_pcm_substream *substream, struct
 			}
 			#if SRAM
 				substream->dma_buffer.addr = 0x00020000;
-				substream->dma_buffer.area = 0xf0020000;
+				substream->dma_buffer.area = (unsigned char *)0xf0020000;
 			#endif
 			snd_pcm_set_runtime_buffer(substream, &substream->dma_buffer);
 			play_runtime->dma_bytes = play_totbytes;
@@ -1574,6 +1574,7 @@ static int snd_sun7i_codec_prepare(struct	snd_pcm_substream	*substream)
 	}
 }
 
+volatile static int active = 0;
 static int snd_sun7i_codec_trigger(struct snd_pcm_substream *substream, int cmd)
 {	
 	int play_ret = 0, capture_ret = 0;
@@ -1586,6 +1587,8 @@ static int snd_sun7i_codec_trigger(struct snd_pcm_substream *substream, int cmd)
 			case SNDRV_PCM_TRIGGER_START:
 			case SNDRV_PCM_TRIGGER_RESUME:
 			case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+				active++;
+
 				play_prtd->state |= ST_RUNNING;
 				/*
 				* start dma transfer
@@ -1599,6 +1602,7 @@ static int snd_sun7i_codec_trigger(struct snd_pcm_substream *substream, int cmd)
 				break;
 			case SNDRV_PCM_TRIGGER_SUSPEND:				
 				//codec_play_stop();				
+				active--;
 				break;
 			case SNDRV_PCM_TRIGGER_STOP:			 				
 				play_prtd->state &= ~ST_RUNNING;
@@ -1608,8 +1612,10 @@ static int snd_sun7i_codec_trigger(struct snd_pcm_substream *substream, int cmd)
 				*/
 				if (0 != sw_dma_ctl(play_prtd->dma_hdl, DMA_OP_STOP, NULL)) {
 					printk("%s err, dma stop err\n", __FUNCTION__);
+					active--;
 					return -EINVAL;
 				}
+				active--;
 				break;
 			case SNDRV_PCM_TRIGGER_PAUSE_PUSH:							
 				play_prtd->state &= ~ST_RUNNING;
@@ -1618,8 +1624,10 @@ static int snd_sun7i_codec_trigger(struct snd_pcm_substream *substream, int cmd)
 				*/
 				if (0 != sw_dma_ctl(play_prtd->dma_hdl, DMA_OP_STOP, NULL)) {
 					printk("%s err, dma stop err\n", __FUNCTION__);
+					active--;
 					return -EINVAL;
 				}
+				active--;
 				break;
 			default:
 				printk("error:%s,%d\n", __func__, __LINE__);

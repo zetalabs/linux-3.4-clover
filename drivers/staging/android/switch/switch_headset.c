@@ -3,7 +3,6 @@
  *
  * Copyright (C) 2008 Google, Inc.
  * Author: Mike Lockwood <lockwood@android.com>
- * xgc change for A20 2014.07
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -33,9 +32,6 @@
 #include <linux/switch.h>
 #include <mach/sys_config.h>
 #include <mach/system.h>
-#include <linux/gpio.h>
-#include <linux/regulator/consumer.h>
-
 
 #undef SWITCH_DBG
 #if (0)
@@ -58,14 +54,6 @@ static int gpio_earphone_switch = 0;
 static void __iomem *tpadc_base;
 static int count_state;
 static int switch_used = 0;
-static script_item_u    spk_mute_ctl;
-static	int start_val=-2;
-static	int end_val=-1;
-static struct gpio_hdle {
-	script_item_u	val;
-	script_item_value_type_e  type;	
-}audio_gpio_hdle;
-
 
 struct gpio_switch_data {
 	struct switch_dev sdev;
@@ -78,31 +66,106 @@ struct gpio_switch_data {
 };
 
 static void earphone_hook_handle(unsigned long data)
-{	 	
+{
+	int fifo_val[4];
+	int ave_count;
+	int temp;	
 	struct gpio_switch_data	*switch_data = (struct gpio_switch_data *)data;	
-
-	unsigned int  reg_val;
-	volatile unsigned int key_val;
-
+	
 	SWITCH_DBG("enter:%s,line:%d\n", __func__, __LINE__);
+	 //printk("earphone_hook_handle\n");
+	/*判断是否需要采集数据*/
+	temp = readl(tpadc_base + TP_INT_FIFO_STATUS);
+	temp &= (1<<16);
+	
+	if (temp) {	
+		fifo_val[0] = readl(tpadc_base + TP_DATA);
+		fifo_val[1] = readl(tpadc_base + TP_DATA);
+		fifo_val[2] = readl(tpadc_base + TP_DATA);
+		fifo_val[3] = readl(tpadc_base + TP_DATA);
+		
+		/*清理pending位*/
+		temp = readl(tpadc_base + TP_INT_FIFO_STATUS);
+		temp |= (1<<16);
+		writel(temp, tpadc_base + TP_INT_FIFO_STATUS);
+		
+		/*取4次fifo中的数据作为平均数*/
+		ave_count = (fifo_val[0] + fifo_val[1] + fifo_val[2] + fifo_val[3])/4;
+		
 
-	start_val = __gpio_get_value(audio_gpio_hdle.val.gpio.gpio);
-	SWITCH_DBG("%s,start_val=%d,end_val=%d\n", __func__, start_val, end_val);
+		//SWITCH_DBG("%s,line:%d,fifo_val[0]:%d\n", __func__, __LINE__,fifo_val[0]);
+		//SWITCH_DBG("%s,line:%d,fifo_val[1]:%d\n", __func__, __LINE__,fifo_val[1]);
+		//SWITCH_DBG("%s,line:%d,fifo_val[2]:%d\n", __func__, __LINE__,fifo_val[2]);
+		//SWITCH_DBG("%s,line:%d,fifo_val[3]:%d\n", __func__, __LINE__,fifo_val[3]);
 
-	if(start_val!=end_val)
-	{
-		end_val = start_val;
-		if(start_val)	
-		{
-			switch_data->state = 2;			   	
-		}
-		else
-		{		
+		/*如果x2线端采样值大于2900，代表耳机拔出*/
+		//SWITCH_DBG("%s,line:%d,ave_count:%d\n", __func__, __LINE__,ave_count);
+		if (ave_count > 2200) {
 			switch_data->state = 0;
-		}		  
-		schedule_work(&switch_data->work);
+			 //printk("state:%d\n",switch_data->state);
+			 //pa_dde=(pa_dde||(1<<2));
+			// printk("0xf1c22c00 is:%x\n", *(volatile int *)0xf1c22c28);
+			SWITCH_DBG("enter:%s,line:%d\n", __func__, __LINE__);
+		/*如果x2线端采样值在0~500之间，代表3段耳机插入*/
+		} else if (ave_count < 500) {
+			switch_data->state = 2;
+			
+			//gpio_write_one_pin_value(gpio_earphone_switch, 0, "audio_earphone_ctrl");
+			//pa_dde=(pa_dde&&!(1<<2));
+			 //printk("0xf1c22c00 is:%x\n", *(volatile int *)0xf1c22c28);
+			//printk("state:%d\n",switch_data->state);
+			SWITCH_DBG("enter:%s,line:%d\n", __func__, __LINE__);
+		/*如果x2线端采样值大于600,小于2600,代表4段耳机插入*/
+		} else if (ave_count >= 600 && ave_count < 2000) {
+		   	switch_data->state = 1;
+		   //	printk("state:%d\n",switch_data->state);
+		   //	gpio_write_one_pin_value(gpio_earphone_switch, 1, "audio_earphone_ctrl");
+		   	
+		   	SWITCH_DBG("enter:%s,line:%d\n", __func__, __LINE__);
+	       	// pa_dde=(pa_dde&&!(1<<2));
+			 //printk("0xf1c22c00 is:%x\n", *(volatile int *)0xf1c22c28);
+		   	
+		   	/*如果是4段耳机,那么50ms后再次检查是否打开了hook(可以通过耳机mic通话)*/
+			mdelay(30);
+			
+			temp = readl(tpadc_base + TP_INT_FIFO_STATUS);
+			temp &= (1<<16);
+			/*判断hook键是否按下*/
+			if (temp) {
+				fifo_val[0] = readl(tpadc_base + TP_DATA);
+				fifo_val[1] = readl(tpadc_base + TP_DATA);
+				fifo_val[2] = readl(tpadc_base + TP_DATA);
+				fifo_val[3] = readl(tpadc_base + TP_DATA);
+				
+				temp = readl(tpadc_base + TP_INT_FIFO_STATUS);
+				temp |= (1<<16);
+				writel(temp, tpadc_base + TP_INT_FIFO_STATUS);
+			
+				/*取4次fifo中的数据作为平均数*/
+				ave_count = (fifo_val[0] + fifo_val[1] + fifo_val[2] + fifo_val[3])/4; 
+				if (ave_count <= 410) {
+					SWITCH_DBG("enter:%s,line:%d\n", __func__, __LINE__);		
+					switch_data->state = 3;
+				}
+/*				SWITCH_DBG("%s,line:%d,fifo_val[0]:%d\n", __func__, __LINE__,fifo_val[0]);
+				SWITCH_DBG("%s,line:%d,fifo_val[1]:%d\n", __func__, __LINE__,fifo_val[1]);
+				SWITCH_DBG("%s,line:%d,fifo_val[2]:%d\n", __func__, __LINE__,fifo_val[2]);
+				SWITCH_DBG("%s,line:%d,fifo_val[3]:%d\n", __func__, __LINE__,fifo_val[3]);
+*/
+			}
+		}
+	
+		if ((switch_data->pre_state != switch_data->state)
+			&& count_state++ >= 3) {
+			printk("enter:%s,line:%d, pre_state: %d, state: %d\n", 
+					__func__, __LINE__, switch_data->pre_state, switch_data->state);
+			switch_data->pre_state = switch_data->state;
+			schedule_work(&switch_data->work);
+			//switch_set_state(&switch_data->sdev, switch_data->state);
+			count_state = 0;
+		}
 	}
-
+	
 	mod_timer(&switch_data->timer, jiffies + msecs_to_jiffies(200));	
 }
 
@@ -129,27 +192,6 @@ static ssize_t print_headset_name(struct switch_dev *sdev, char *buf)
 	return sprintf(buf, "%s\n", switch_data->sdev.name);
 }
 
-static int gpio_switch_resume(struct platform_device *pdev)
-{	
-	int temp;
-	tpadc_base = (void __iomem *)SW_VA_TP_IO_BASE;	
-	writel(TP_CTRL_CLK_PARA, tpadc_base + TP_CTRL0);	
-	temp = readl(tpadc_base + TP_CTRL1);
-	temp |= ((1<<3) | (0<<4)); //tp mode function disable and select ADC module.
-	temp |=0x1;//X2 channel	
-	writel(temp, tpadc_base + TP_CTRL1);
-
-	temp = readl(tpadc_base + TP_INT_FIFO_CTR);
-	temp |= (1<<16); //TP FIFO Data available IRQ Enable
-	temp |= (0x3<<8); //4次采样数据的平均值 (3+1)
-	writel(temp, tpadc_base + TP_INT_FIFO_CTR);
-	
-	temp = readl(tpadc_base + TP_CTRL1);
-	temp |= (1<<4);	
-	writel(temp, tpadc_base + TP_CTRL1);
-
-	return 0;
-}
 static int gpio_switch_probe(struct platform_device *pdev)
 {
 	struct gpio_switch_platform_data *pdata = pdev->dev.platform_data;
@@ -229,7 +271,7 @@ static int gpio_switch_probe(struct platform_device *pdev)
 
 err_switch_dev_register:
 		//gpio_release(switch_data->pio_hdle, 1);
-err_gpio_request:
+//err_gpio_request:
 		kfree(switch_data);
 
 	return ret;
@@ -256,7 +298,6 @@ static int __devexit gpio_switch_remove(struct platform_device *pdev)
 static struct platform_driver gpio_switch_driver = {
 	.probe		= gpio_switch_probe,
 	.remove		= __devexit_p(gpio_switch_remove),
-	.resume		= gpio_switch_resume,
 	.driver		= {
 		.name	= "switch-gpio",
 		.owner	= THIS_MODULE,
@@ -285,26 +326,6 @@ static int __init gpio_switch_init(void)
 		pr_info("value is %d\n", val.val);    
 		switch_used=val.val;
     if (switch_used) {
-/* direct access to the hp_det pin */
-
-	audio_gpio_hdle.type = script_get_item("switch_para", "hp_det", &(audio_gpio_hdle.val));
-	
-	if(SCIRPT_ITEM_VALUE_TYPE_PIO != audio_gpio_hdle.type)
-		printk(KERN_ERR "ERROR: Audio gpio type err! \n");
-	
-	printk("audio_gpio_hdle value is: gpio %d, mul_sel %d, pull %d, drv_level %d, data %d\n", 
-		audio_gpio_hdle.val.gpio.gpio, audio_gpio_hdle.val.gpio.mul_sel, audio_gpio_hdle.val.gpio.pull,  
-		audio_gpio_hdle.val.gpio.drv_level, audio_gpio_hdle.val.gpio.data);
-	 
-	if(0 != gpio_request(audio_gpio_hdle.val.gpio.gpio, NULL)) {	
-		printk(KERN_ERR "ERROR: Audio Gpio_request is failed\n");
-	}
-
-	
-	if (0 != sw_gpio_setall_range(&audio_gpio_hdle.val.gpio, 1)) {
-		printk(KERN_ERR "ERROR: Audio gpio set err!");
-		//goto end;
-	}
 		ret = platform_device_register(&gpio_switch_device);
 		if (ret == 0) {
 			ret = platform_driver_register(&gpio_switch_driver);

@@ -126,13 +126,13 @@ static int nftl_thread(void *arg)
 //        }
         else
         {
-           if (time_after(time,nftl_blk->time + nftl_blk->time_flush)){
+           if (time_after(time,(unsigned long)(nftl_blk->time + nftl_blk->time_flush))){
                 nftl_blk->flush_write_cache(nftl_blk,8);
            }
         }
 
 #if WEAR_LEVELING
-        if (time_after(time,(HZ<<4)+nftl_blk->time)){
+        if (time_after(time,((HZ<<4)+nftl_blk->time))){
             if(do_static_wear_leveling(nftl_blk->nftl_zone) != 0){
                 nand_dbg_err("nftl_thread do_static_wear_leveling error!\n");
             }
@@ -208,40 +208,40 @@ struct _nand_dev* del_last_nand_dev(struct _nand_dev*head)
 *****************************************************************************/
 int add_nand(struct nand_blk_ops *tr, struct _nand_phy_partition* phy_partition)
 {
-	int i;
+    int i;
     __u32 cur_offset = 0;
     struct _nftl_blk *nftl_blk;
     struct _nand_dev *nand_dev;
-	struct _nand_disk* disk;
-	struct _nand_disk* head_disk;
-	struct nand_kobject* nand_kobj;
-	uint16 PartitionNO;
+    struct _nand_disk* disk;
+    struct _nand_disk* head_disk;
+    struct nand_kobject* nand_kobj;
+    uint16 PartitionNO;
 
     PartitionNO = get_partitionNO(phy_partition);
 
     nftl_blk = kmalloc(sizeof(struct _nftl_blk), GFP_KERNEL);
     if (!nftl_blk)
-	{
-	    nand_dbg_err("init kmalloc fail 3!\n");
-		return 1;
-	}
+    {
+        nand_dbg_err("init kmalloc fail 3!\n");
+        return 1;
+    }
     nftl_blk->nand = build_nand_partition(phy_partition);
 
     if (nftl_initialize(nftl_blk,PartitionNO))
-	{
+    {
         nand_dbg_err("nftl_initialize failed\n");
         return 1;
     }
 
     nftl_blk->blk_lock = kmalloc(sizeof(struct mutex), GFP_KERNEL);
     if (!nftl_blk->blk_lock)
-	{
-	    nand_dbg_err("init kmalloc fail 2!\n");
-		return 1;
-	}
+    {
+        nand_dbg_err("init kmalloc fail 2!\n");
+        return 1;
+    }
     mutex_init(nftl_blk->blk_lock);
 
-	nftl_blk->nftl_thread = kthread_run(nftl_thread, nftl_blk, "%sd", "nftl");
+    nftl_blk->nftl_thread = kthread_run(nftl_thread, nftl_blk, "%sd", "nftl");
     if (IS_ERR(nftl_blk->nftl_thread))
     {
         nand_dbg_err("init kthread_run fail!\n");
@@ -252,18 +252,18 @@ int add_nand(struct nand_blk_ops *tr, struct _nand_phy_partition* phy_partition)
 
     nand_kobj = kzalloc(sizeof(struct nand_kobject), GFP_KERNEL);
     if (!nand_kobj)
-	{
-	    nand_dbg_err("init kmalloc fail 1!\n");
-		return 1;
-	}
-	nand_kobj->nftl_blk = nftl_blk;
+    {
+        nand_dbg_err("init kmalloc fail 1!\n");
+        return 1;
+    }
+    nand_kobj->nftl_blk = nftl_blk;
     if(kobject_init_and_add(&nand_kobj->kobj,&ktype,NULL,"nand_driver%d",PartitionNO) != 0 ) {
-    	nand_dbg_err("init nand sysfs fail!\n");
-	  	return 1;
-	}
+        nand_dbg_err("init nand sysfs fail!\n");
+        return 1;
+    }
 
-	disk = get_disk_from_phy_partition(phy_partition);
-	for(i=0;i<MAX_PART_COUNT_PER_FTL;i++)
+    disk = get_disk_from_phy_partition(phy_partition);
+    for(i=0;i<MAX_PART_COUNT_PER_FTL;i++)
     {
         //nand_dbg_err("disk->name %s\n",(char *)(disk->name));
         //nand_dbg_err("disk->type %x\n",disk[i].type);
@@ -271,27 +271,27 @@ int add_nand(struct nand_blk_ops *tr, struct _nand_phy_partition* phy_partition)
     }
 
     head_disk = get_disk_from_phy_partition(phy_partition);
-	for(i=0;i<MAX_PART_COUNT_PER_FTL;i++)
-	{
-		disk = head_disk + i;
-		if(disk->type == 0xffffffff)
-		{
-		    break;
-		}
+    for(i=0;i<MAX_PART_COUNT_PER_FTL;i++)
+    {
+        disk = head_disk + i;
+        if(disk->type == 0xffffffff)
+        {
+            break;
+        }
 
         nand_dev = kmalloc(sizeof(struct _nand_dev), GFP_KERNEL);
         if (!nand_dev)
-		{
-		    nand_dbg_err("init kmalloc fail!\n");
+        {
+            nand_dbg_err("init kmalloc fail!\n");
             return 1;
-		}
+        }
 
-		add_nand_dev_list(&tr->nand_dev_head,nand_dev);
+        add_nand_dev_list(&tr->nand_dev_head,nand_dev);
 
         nand_dev->nbd.nandr = &mytr;
 
         if(dev_initialize(nand_dev,nftl_blk,cur_offset,disk->size) != 0)
-		{
+        {
             //nand_dbg_err("dev_initialize failed\n");
             return 1;
         }
@@ -310,14 +310,14 @@ int add_nand(struct nand_blk_ops *tr, struct _nand_phy_partition* phy_partition)
             dev_num++;
             nand_dev->nbd.devnum = dev_num;
             if (add_nand_blktrans_dev(&nand_dev->nbd))
-		    {
+            {
                 nand_dbg_err("nftl add blk disk dev failed\n");
                 return 1;
             }
         }
 
-		cur_offset += disk->size;
-	}
+        cur_offset += disk->size;
+    }
     return 0;
 }
 
@@ -330,7 +330,7 @@ int add_nand(struct nand_blk_ops *tr, struct _nand_phy_partition* phy_partition)
 *****************************************************************************/
 int remove_nand(struct nand_blk_ops *tr)
 {
-	struct nand_kobject* nand_kobj;
+    struct nand_kobject* nand_kobj;
     struct _nftl_blk *nftl_blk;
     struct _nand_dev *nand_dev;
 
@@ -522,7 +522,7 @@ int _dev_nand_write(struct _nand_dev *nand_dev,__u32 start_sector,__u32 len,unsi
 int _dev_nand_discard(struct _nand_dev *nand_dev,__u32 start_sector,__u32 len)
 {
     __u32 ret = 0;
-    struct _nftl_blk *nftl_blk = nand_dev->nftl_blk;
+    //struct _nftl_blk *nftl_blk = nand_dev->nftl_blk;
 
     //mutex_lock(nftl_blk->blk_lock);
     //nand_dbg_err("==========nand_discard========== %d,%d\n",start_sector,len);

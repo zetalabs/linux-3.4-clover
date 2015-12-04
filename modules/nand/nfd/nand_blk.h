@@ -131,7 +131,7 @@ struct nand_blk_ops{
     int major;
     int minorbits;
     int blksize;
-	int blkshift;
+    int blkshift;
     /* add/remove nandflash devparts,use gendisk */
     int (*add_dev)(struct nand_blk_ops *tr, struct _nand_phy_partition* phy_partition);
     int (*remove_dev)(struct nand_blk_ops *tr);
@@ -145,7 +145,7 @@ struct nand_blk_ops{
     int (*release)(struct nand_blk_dev *dev);
 
     struct _nftl_blk nftl_blk_head;
-	struct _nand_dev nand_dev_head;
+    struct _nand_dev nand_dev_head;
 
     /* synchronization variable */
     struct completion thread_exit;

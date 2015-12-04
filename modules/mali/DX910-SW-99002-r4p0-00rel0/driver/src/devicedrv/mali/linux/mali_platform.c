@@ -106,7 +106,7 @@ static DEVICE_ATTR(mali_use, 0444, mali_use_show, NULL);
 static ssize_t mali_clk_show(struct device *dev,
 		struct device_attribute *attr, char *buf){
 
-    return sprintf(buf, "%d\n", clk_get_rate(h_gpu_pll));
+    return sprintf(buf, "%lu\n", clk_get_rate(h_gpu_pll));
 }
 static DEVICE_ATTR(mali_clk, 0444, mali_clk_show, NULL);
 
@@ -594,6 +594,7 @@ static struct notifier_block powernow_notifier = {
 	.notifier_call = powernow_notifier_call,
 };
 
+#if 0
 #define DRAM_VOLT_MIN (1050000)
 static int mali_dram_notify(struct notifier_block *nb, unsigned long event, void *cmd)
 {
@@ -634,6 +635,7 @@ static int mali_dram_notify(struct notifier_block *nb, unsigned long event, void
 static struct notifier_block dram_notifier = {
 	.notifier_call = mali_dram_notify,
 };
+#endif
 
 static int mali_pm_notify(struct notifier_block *nb, unsigned long event, void *dummy)
 {
@@ -665,15 +667,17 @@ static struct notifier_block mali_pm_notifier = {
 static int mali_freq_init(void)
 {
     script_item_u   mali_use, mali_max_freq, mali_min_freq, mali_vol;
-
-	sysfs_create_group(&mali_gpu_device.dev.kobj,
-						 &sunxi_reg_attribute_group);
+    int retval = sysfs_create_group(&mali_gpu_device.dev.kobj,
+                                &sunxi_reg_attribute_group);
+    if (retval != 0) {
+        printk("sysfs_create_group() failed\n");
+    }
     mali_regulator = regulator_get(NULL, "axp20_ddr");
-	if (IS_ERR(mali_regulator)) {
-	    printk("get mali regulator failed\n");
+    if (IS_ERR(mali_regulator)) {
+        printk("get mali regulator failed\n");
         mali_regulator = NULL;
-	    return -1;
-	}
+        return -1;
+    }
     h_mbus_clk = clk_get(NULL, CLK_MOD_MBUS);
     if (!h_mbus_clk || IS_ERR(h_mbus_clk)){
         printk("get mbus clk failed!\n\n\n\n\n\n\n\n\n\n");

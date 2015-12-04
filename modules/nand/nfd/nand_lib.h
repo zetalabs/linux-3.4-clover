@@ -91,7 +91,7 @@ struct _nand_disk{
 	unsigned  char      name[PARTITION_NAME_SIZE];
 };
 
-extern struct _nand_phy_partition;
+struct _nand_phy_partition;
 
 struct _nftl_blk{
 	unsigned int                            nftl_logic_size;
@@ -102,7 +102,7 @@ struct _nftl_blk{
 	unsigned int		                    time;
 	unsigned int		                    time_flush;
 	void*                                   nftl_thread;
-    void*                                   blk_lock;
+	void*                                   blk_lock;
 	int (*read_data)               (struct _nftl_blk *nftl_blk, unsigned int sector, unsigned int len, unsigned char *buf);
 	int (*write_data)              (struct _nftl_blk *nftl_blk, unsigned int sector, unsigned int len, unsigned char *buf);
 	int (*flush_write_cache)       (struct _nftl_blk *nftl_blk,unsigned int num);

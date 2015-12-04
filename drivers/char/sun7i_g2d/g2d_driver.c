@@ -567,6 +567,7 @@ static int g2d_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifndef CONFIG_HAS_EARLYSUSPEND
 static int g2d_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	g2d_clk_off();
@@ -581,8 +582,7 @@ static int g2d_resume(struct platform_device *pdev)
 
 	return 0;
 }
-
-#ifdef CONFIG_HAS_EARLYSUSPEND
+#else
 void g2d_early_suspend(struct early_suspend *h)
 {
 //    g2d_suspend(NULL, PMSG_SUSPEND);

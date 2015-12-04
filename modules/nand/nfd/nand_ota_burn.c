@@ -246,6 +246,7 @@ error:
 
 int NAND_BurnBoot0(uint length, void *buf)
 {
+	int ret = 0;
 	__u32 read_retry_type = 0, read_retry_mode;
 	void *buffer;
 	NAND_PhysicLock();
@@ -253,8 +254,11 @@ int NAND_BurnBoot0(uint length, void *buf)
 	debug("buf_from %x \n",buf);
 	buffer =(void *)kmalloc(length,GFP_KERNEL);
 	debug("buf_kmalloc %x \n",buffer);
-	copy_from_user(buffer,(const void*)buf,length);
-
+	ret = copy_from_user(buffer,(const void*)buf,length);
+	if (ret != 0) {
+		debug("copy_from_user() error!\n");
+		goto error;
+	}
 	get_dram_para(buffer);
 	debug("get dram para ok\n");
 	get_nand_para(buffer);
@@ -682,7 +686,11 @@ int NAND_BurnBoot1(uint length, void *buf)
 
 	buffer =(void *) kmalloc(length,GFP_KERNEL);
 
-	copy_from_user(buffer, (const void*)buf, length);
+	ret = copy_from_user(buffer, (const void*)buf, length);
+	if (ret != 0) {
+		debug("copy_from_user() error!\n");
+		goto error;
+	}
 
 	get_nand_para_for_boot1(buffer);
 	gen_uboot_check_sum(buffer);

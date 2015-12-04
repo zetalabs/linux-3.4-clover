@@ -47,12 +47,12 @@
 //#define SUN7I_SYS_CLK_CFG_EN
 #define SUN7I_PRINT_SUSPEND_INFO
 
-
-
+#if 0
 static struct gpio_hdle {
 	script_item_u	val;
 	script_item_value_type_e  type;		
 }ir_gpio_hdle;
+#endif
 
 //Registers
 #define IR_BASE			SW_VA_IR0_IO_BASE

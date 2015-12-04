@@ -187,7 +187,7 @@ void nand_shutdown(struct platform_device *plat_dev)
 
 static int nand_dram_notify(struct notifier_block *nb, unsigned long event, void *cmd)
 {
-    int i = 0;
+    //int i = 0;
     if (event == DRAMFREQ_NOTIFY_PREPARE){
 				printk("[NAND] before  lock\n");
 				lock_all_blk();
@@ -222,7 +222,7 @@ static struct platform_driver nand_driver = {
     }
 };
 
-
+#if 0
 static struct resource flash_resource = {
 	.start		= 0,
 	.end		= 1,
@@ -235,6 +235,7 @@ static struct platform_device nand_device = {
 	.resource	= &flash_resource,
 	.num_resources	= 1,
 };
+#endif
 
 static struct notifier_block nand_notifier = {
        .notifier_call = nand_dram_notify,
@@ -259,6 +260,7 @@ int __init nand_init(void)
     script_item_value_type_e  type;
     char * dev_name = "nand_dev";
     char * dev_id = "nand_id";
+    int storage_type = 0;
 
 #ifdef __LINUX_NAND_SUPPORT_INT__
     unsigned long irqflags_ch0, irqflags_ch1;
@@ -315,32 +317,38 @@ int __init nand_init(void)
 
     set_cache_level(p_nand_info,nand_cache_level.val);
 
-
-	int storage_type =0;
     storage_type = NAND_get_storagetype();
     if((1 != storage_type)&&(2 != storage_type))
     {
-		ret = nand_info_init(p_nand_info,0,8,NULL);
+        ret = nand_info_init(p_nand_info,0,8,NULL);
     }
-	else
-	{
-		nand_dbg_err("storage_type=%d,run nand test for dragonboard\n",storage_type);
-				
-		uchar *data = kmalloc(0x400,GFP_KERNEL);
-		test_mbr(data);
-    	ret = nand_info_init(p_nand_info,0,8,data);
+    else
+    {
+        uchar *data;
+        nand_dbg_err("storage_type=%d,run nand test for dragonboard\n",storage_type);
 
-	}
+        data = kmalloc(0x400,GFP_KERNEL);
+        if(data)
+        {
+            test_mbr(data);
+            ret = nand_info_init(p_nand_info,0,8,data);
+            kfree(data);
+        }
+        else
+        {
+            ret = -1;
+        }
+    }
 
     if(ret != 0)
     {
         return ret;
     }
 
-	//platform_device_register(&nand_device);
-   	platform_driver_register(&nand_driver);
+    //platform_device_register(&nand_device);
+    platform_driver_register(&nand_driver);
 
-	dramfreq_register_notifier(&nand_notifier);
+    dramfreq_register_notifier(&nand_notifier);
     time_used = 0;
     init_blklayer();
 
@@ -379,7 +387,7 @@ void __exit nand_exit(void)
     }
 
     platform_driver_unregister(&nand_driver);
-	//platform_device_unregister(&nand_device);
+    //platform_device_unregister(&nand_device);
 
     exit_blklayer();
 

@@ -78,7 +78,7 @@ static DECLARE_WAIT_QUEUE_HEAD(NAND_RB_WAIT_CH1);
 
 #ifdef __LINUX_NAND_SUPPORT_INT__
 static int nandrb_ready_flag[2] = {1, 1};
-static int nanddma_ready_flag[2] = {1, 1};
+//static int nanddma_ready_flag[2] = {1, 1};
 
 
 #endif
@@ -738,7 +738,7 @@ int NAND_GetPlatform(void)
 	return 20;	
 }
 
-int NAND_get_storagetype()
+int NAND_get_storagetype(void)
 {
     script_item_value_type_e script_ret;
     script_item_u storage_type;

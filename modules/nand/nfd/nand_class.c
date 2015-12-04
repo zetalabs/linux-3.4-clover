@@ -195,12 +195,12 @@ static ssize_t nand_test_store(struct kobject *kobject,struct attribute *attr, c
     else if(strcmp(cmd,"time") == 0)
     {
         nand_dbg_err("  blk time %lld\n",time_used);
-        nand_dbg_err("   total_read_sector %d\n",total_read_sector);
-        nand_dbg_err("   total_write_sector %d\n",total_write_sector);
+        nand_dbg_err("   total_read_sector %lu\n",total_read_sector);
+        nand_dbg_err("   total_write_sector %lu\n",total_write_sector);
         nand_dbg_err("   total_read_time %lld\n",total_read_time);
         nand_dbg_err("   total_write_time %lld\n",total_write_time);
-        nand_dbg_err("   total_read_counter %d\n",total_read_counter);
-        nand_dbg_err("   total_write_counter %d\n",total_write_counter);
+        nand_dbg_err("   total_read_counter %lu\n",total_read_counter);
+        nand_dbg_err("   total_write_counter %lu\n",total_write_counter);
         goto NAND_TEST_STORE_EXIT;
     }
     else if(strcmp(cmd,"version") == 0)

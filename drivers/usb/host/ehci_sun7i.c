@@ -898,7 +898,7 @@ int sw_pause_ehci(__u32 usbc_no)
 	struct sw_hci_hcd *sw_ehci = NULL;
     struct ehci_hcd *ehci = NULL;
     u32			command;
-    u32         status;
+    //u32         status;
     
 	if(usbc_no != 1 && usbc_no != 2){
 		DMSG_PANIC("ERR:Argmen invalid. usbc_no(%d)\n", usbc_no);
@@ -940,7 +940,7 @@ int sw_restart_ehci(__u32 usbc_no)
 	struct sw_hci_hcd *sw_ehci = NULL;
     struct ehci_hcd *ehci = NULL;
     u32			command;
-    u32         status;
+    //u32         status;
     
 	if(usbc_no != 1 && usbc_no != 2){
 		DMSG_PANIC("ERR:Argmen invalid. usbc_no(%d)\n", usbc_no);

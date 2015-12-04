@@ -21,6 +21,7 @@
 #ifndef _V4L2_CTRLS_H
 #define _V4L2_CTRLS_H
 
+#include <linux/fs.h>
 #include <linux/list.h>
 #include <linux/videodev2.h>
 
