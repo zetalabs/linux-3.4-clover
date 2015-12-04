@@ -1082,12 +1082,12 @@ void InitInterrupt8723ASdio(PADAPTER padapter)
 //								SDIO_HIMR_TXBCNOK_MSK				|
 //								SDIO_HIMR_TXBCNERR_MSK			|
 //								SDIO_HIMR_BCNERLY_INT_MSK			|
-#ifndef CONFIG_DETECT_CPWM_AND_C2H_BY_POLLING
+#ifndef CONFIG_DETECT_C2H_BY_POLLING
 #if defined( CONFIG_BT_COEXIST) || defined(CONFIG_MP_INCLUDED)
 								SDIO_HIMR_C2HCMD_MSK				|
 #endif
 #endif
-#ifndef CONFIG_DETECT_CPWM_AND_C2H_BY_POLLING
+#ifndef CONFIG_DETECT_CPWM_BY_POLLING
 #ifdef CONFIG_LPS_LCLK
 								SDIO_HIMR_CPWM1_MSK				|
 //								SDIO_HIMR_CPWM2_MSK				|
@@ -1351,11 +1351,8 @@ static struct recv_buf* sd_recv_rxfifo(PADAPTER padapter, u32 size)
 		SIZE_PTR tmpaddr=0;
 		SIZE_PTR alignment=0;
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)) // http://www.mail-archive.com/netdev@vger.kernel.org/msg17214.html
-		precvbuf->pskb = __dev_alloc_skb(MAX_RECVBUF_SZ + RECVBUFF_ALIGN_SZ, GFP_KERNEL);
-#else
-		precvbuf->pskb = __netdev_alloc_skb(padapter->pnetdev, MAX_RECVBUF_SZ + RECVBUFF_ALIGN_SZ, GFP_KERNEL);
-#endif
+		precvbuf->pskb = rtw_skb_alloc(MAX_RECVBUF_SZ + RECVBUFF_ALIGN_SZ);
+
 		if(precvbuf->pskb)
 		{
 			precvbuf->pskb->dev = padapter->pnetdev;
@@ -1406,11 +1403,9 @@ static struct recv_buf* sd_recv_rxfifo(PADAPTER padapter, u32 size)
 	//3 1. alloc skb
 	// align to block size
 	allocsize = _RND(readsize, adapter_to_dvobj(padapter)->intf_data.block_transfer_len);
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)) // http://www.mail-archive.com/netdev@vger.kernel.org/msg17214.html
-	ppkt = __dev_alloc_skb(allocsize, GFP_KERNEL);
-#else
-	ppkt = __netdev_alloc_skb(padapter->pnetdev, allocsize, GFP_KERNEL);
-#endif
+
+	ppkt = rtw_skb_alloc(allocsize);
+
 	if (ppkt == NULL) {
 		RT_TRACE(_module_hci_ops_os_c_, _drv_err_, ("%s: alloc_skb fail! alloc=%d read=%d\n", __FUNCTION__, allocsize, readsize));
 		return NULL;
@@ -1421,7 +1416,7 @@ static struct recv_buf* sd_recv_rxfifo(PADAPTER padapter, u32 size)
 //	rtw_read_port(padapter, WLAN_RX0FF_DEVICE_ID, readsize, preadbuf);
 	ret = sdio_read_port(&padapter->iopriv.intf, WLAN_RX0FF_DEVICE_ID, readsize, preadbuf);
 	if (ret == _FAIL) {
-		dev_kfree_skb_any(ppkt);
+		rtw_skb_free(ppkt);
 		RT_TRACE(_module_hci_ops_os_c_, _drv_err_, ("%s: read port FAIL!\n", __FUNCTION__));
 		return NULL;
 	}
@@ -1430,7 +1425,7 @@ static struct recv_buf* sd_recv_rxfifo(PADAPTER padapter, u32 size)
 	precvpriv = &padapter->recvpriv;
 	precvbuf = rtw_dequeue_recvbuf(&precvpriv->free_recv_buf_queue);
 	if (precvbuf == NULL) {
-		dev_kfree_skb_any(ppkt);
+		rtw_skb_free(ppkt);
 		RT_TRACE(_module_hci_ops_os_c_, _drv_err_, ("%s: alloc recvbuf FAIL!\n", __FUNCTION__));
 		return NULL;
 	}

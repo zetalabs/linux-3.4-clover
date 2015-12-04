@@ -1183,9 +1183,8 @@ static VOID _BBTurnOnBlock(
 #define MgntActSet_RF_State(...)
 static void _RfPowerSave(PADAPTER padapter)
 {
-#if 0
-	PHAL_DATA_TYPE pHalData = GET_HAL_DATA(padapter);
-	struct pwrctrl_priv *ppwrctrl = adapter_to_pwrctl(padapter);
+	PHAL_DATA_TYPE pHalData;
+	struct pwrctrl_priv *pwrctrl;
 	rt_rf_power_state eRfPowerStateToSet;
 	u8 u1bTmp;
 
@@ -1193,6 +1192,10 @@ static void _RfPowerSave(PADAPTER padapter)
 #if (DISABLE_BB_RF)
 	return;
 #endif
+
+	pHalData = GET_HAL_DATA(padapter);
+	pwrctrl = adapter_to_pwrctl(padapter);
+
 	//
 	// 2010/08/11 MH Merge from 8192SE for Minicard init. We need to confirm current radio status
 	// and then decide to enable RF or not.!!!??? For Selective suspend mode. We may not 
@@ -1202,35 +1205,38 @@ static void _RfPowerSave(PADAPTER padapter)
 	// in MgntActSet_RF_State() after wake up, because the value of pHalData->eRFPowerState 
 	// is the same as eRfOff, we should change it to eRfOn after we config RF parameters.
 	// Added by tynli. 2010.03.30.
-	ppwrctrl->rf_pwrstate = rf_on;
-	RT_CLEAR_PS_LEVEL(ppwrctrl, RT_RF_OFF_LEVL_HALT_NIC);
+	pwrctrl->rf_pwrstate = rf_on;
+	RT_CLEAR_PS_LEVEL(pwrctrl, RT_RF_OFF_LEVL_HALT_NIC);
 	//Added by chiyokolin, 2011.10.12 for Tx
 	rtw_write8(padapter, REG_TXPAUSE, 0x00);
 
 	// 20100326 Joseph: Copy from GPIOChangeRFWorkItemCallBack() function to check HW radio on/off.
 	// 20100329 Joseph: Revise and integrate the HW/SW radio off code in initialization.
-
+#if 1
+	pwrctrl->b_hw_radio_off = _FALSE;
+	eRfPowerStateToSet = rf_on;
+#else
 	eRfPowerStateToSet = (rt_rf_power_state) RfOnOffDetect(padapter);
-	ppwrctrl->rfoff_reason |= eRfPowerStateToSet==rf_on ? RF_CHANGE_BY_INIT : RF_CHANGE_BY_HW;
-	ppwrctrl->rfoff_reason |= (ppwrctrl->reg_rfoff) ? RF_CHANGE_BY_SW : 0;
+	pwrctrl->rfoff_reason |= eRfPowerStateToSet==rf_on ? RF_CHANGE_BY_INIT : RF_CHANGE_BY_HW;
+	pwrctrl->rfoff_reason |= (pwrctrl->reg_rfoff) ? RF_CHANGE_BY_SW : 0;
 
-	if (ppwrctrl->rfoff_reason & RF_CHANGE_BY_HW)
-		ppwrctrl->b_hw_radio_off = _TRUE;
+	if (pwrctrl->rfoff_reason & RF_CHANGE_BY_HW)
+		pwrctrl->b_hw_radio_off = _TRUE;
 
-	if (ppwrctrl->reg_rfoff == _TRUE)
+	if (pwrctrl->reg_rfoff == _TRUE)
 	{
 		// User disable RF via registry.
-		RT_TRACE(_module_hci_hal_init_c_, _drv_notice_, ("InitializeAdapter8192CUsb(): Turn off RF for RegRfOff.\n"));
+		RT_TRACE(_module_hci_hal_init_c_, _drv_notice_, ("%s: Turn off RF for RegRfOff\n", __FUNCTION__));
 		MgntActSet_RF_State(padapter, rf_off, RF_CHANGE_BY_SW, _TRUE);
 
 //		if (padapter->bSlaveOfDMSP)
 //			return;
 	}
-	else if (ppwrctrl->rfoff_reason > RF_CHANGE_BY_PS)
+	else if (pwrctrl->rfoff_reason > RF_CHANGE_BY_PS)
 	{
 		// H/W or S/W RF OFF before sleep.
 		RT_TRACE(_module_hci_hal_init_c_, _drv_notice_, ("InitializeAdapter8192CUsb(): Turn off RF for RfOffReason(%ld).\n", pMgntInfo->RfOffReason));
-		MgntActSet_RF_State(padapter, rf_off, ppwrctrl->rfoff_reason, _TRUE);
+		MgntActSet_RF_State(padapter, rf_off, pwrctrl->rfoff_reason, _TRUE);
 	}
 	else
 	{
@@ -1257,22 +1263,23 @@ static void _RfPowerSave(PADAPTER padapter)
 		else
 #endif
 		{
-			ppwrctrl->rf_pwrstate = rf_off;
-			ppwrctrl->rfoff_reason = RF_CHANGE_BY_INIT;
-			MgntActSet_RF_State(padapter, rf_on, ppwrctrl->rfoff_reason, _TRUE);
+			pwrctrl->rf_pwrstate = rf_off;
+			pwrctrl->rfoff_reason = RF_CHANGE_BY_INIT;
+			MgntActSet_RF_State(padapter, rf_on, pwrctrl->rfoff_reason, _TRUE);
 		}
 
-		ppwrctrl->rfoff_reason = 0; 
-		ppwrctrl->b_hw_radio_off = _FALSE;
-		ppwrctrl->rf_pwrstate = rf_on;
+		pwrctrl->rfoff_reason = 0; 
+		pwrctrl->b_hw_radio_off = _FALSE;
+		pwrctrl->rf_pwrstate = rf_on;
 		if (padapter->ledpriv.LedControlHandler)
 			padapter->ledpriv.LedControlHandler(padapter, LED_CTL_POWER_ON);
 	}
-
+#endif
 	// 2010/-8/09 MH For power down module, we need to enable register block contrl reg at 0x1c.
 	// Then enable power down control bit of register 0x04 BIT4 and BIT15 as 1.
 	if (pHalData->pwrdown && eRfPowerStateToSet == rf_off)
 	{
+		DBG_871X("%s pwrdown\n", __FUNCTION__);
 		// Enable register area 0x0-0xc.
 		rtw_write8(padapter, REG_RSV_CTRL, 0x0);
 
@@ -1285,7 +1292,6 @@ static void _RfPowerSave(PADAPTER padapter)
 		u1bTmp |= WL_HWPDN_EN;
 		rtw_write8(padapter, REG_MULTI_FUNC_CTRL, u1bTmp);
 	}
-#endif	
 }
 
 enum {
@@ -3661,6 +3667,9 @@ _func_enter_;
 
 	switch (variable)
 	{
+		case HW_VAR_GET_CPWM:
+			*val =  rtw_read8(Adapter, REG_USB_HCPWM);			
+			break;
 		default:
 			GetHwReg8723A(Adapter, variable, val);
 			break;
@@ -3710,22 +3719,11 @@ GetHalDefVar8192CUsb(
 		case HAL_DEF_DBG_DUMP_RXPKT:
 			*(( u8*)pValue) = pHalData->bDumpRxPkt;
 			break;
-		case HAL_DEF_DBG_DM_FUNC:
-			*(( u32*)pValue) =pHalData->odmpriv.SupportAbility;
-			break;
 		case HW_VAR_MAX_RX_AMPDU_FACTOR:
 			*(( u32*)pValue) = MAX_AMPDU_FACTOR_64K;
 			break;
-		case HW_DEF_ODM_DBG_FLAG:
-			{
-				u8Byte	DebugComponents = *((u32*)pValue);	
-				PDM_ODM_T	pDM_Odm = &(pHalData->odmpriv);
-				printk("pDM_Odm->DebugComponents = 0x%llx \n",pDM_Odm->DebugComponents );			
-			}
-			break;
 		default:
-			//RT_TRACE(COMP_INIT, DBG_WARNING, ("GetHalDefVar8192CUsb(): Unkown variable: %d!\n", eVariable));
-			bResult = _FAIL;
+			bResult = GetHalDefVar(Adapter, eVariable, pValue);
 			break;
 	}
 
@@ -3793,27 +3791,8 @@ SetHalDefVar8192CUsb(
 				}			
 			}
 			break;
-		case HW_DEF_FA_CNT_DUMP:
-			{
-				u8 bRSSIDump = *((u8*)pValue);	
-				PDM_ODM_T		pDM_Odm = &(pHalData->odmpriv);
-				if(bRSSIDump)
-					pDM_Odm->DebugComponents	=	ODM_COMP_DIG|ODM_COMP_FA_CNT	;					
-				else
-					pDM_Odm->DebugComponents	= 0;					
-				
-			}
-			break;
-		case HW_DEF_ODM_DBG_FLAG:
-			{
-				u8Byte	DebugComponents = *((u8Byte*)pValue);	
-				PDM_ODM_T	pDM_Odm = &(pHalData->odmpriv);
-				pDM_Odm->DebugComponents = DebugComponents;			
-			}
-			break;
 		default:
-			//RT_TRACE(COMP_INIT, DBG_TRACE, ("SetHalDefVar819xUsb(): Unkown variable: %d!\n", eVariable));
-			bResult = _FAIL;
+			bResult = SetHalDefVar(Adapter, eVariable, pValue);
 			break;
 	}
 

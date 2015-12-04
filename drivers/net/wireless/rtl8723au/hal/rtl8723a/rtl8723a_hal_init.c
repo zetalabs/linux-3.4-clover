@@ -5576,7 +5576,13 @@ void GetHwReg8723A(PADAPTER padapter, u8 variable, u8 *val)
 			break;
 		case HW_VAR_CHK_HI_QUEUE_EMPTY:
 			*val = ((rtw_read32(padapter, REG_HGQ_INFORMATION)&0x0000ff00)==0) ? _TRUE:_FALSE;
+			break;	
+		case HW_VAR_C2HEVT_CLEAR:
+			*val =  rtw_read8(padapter, REG_C2HEVT_CLEAR);
 			break;
+		case HW_VAR_C2HEVT_MSG_NORMAL:
+			*val =  rtw_read8(padapter, REG_C2HEVT_MSG_NORMAL);
+			break;	
 	}
 }
 

@@ -105,7 +105,13 @@ s32 rtl8723_dequeue_writeport(PADAPTER padapter, u8 *freePage)
 		}
 //		_exit_critical_bh(&phal->SdioTxFIFOFreePageLock, &irql);
 
-		ret = (padapter->bDriverStopped == _TRUE) || (padapter->bSurpriseRemoved == _TRUE);
+		ret = (padapter->bDriverStopped == _TRUE) || (padapter->bSurpriseRemoved == _TRUE)
+#ifdef CONFIG_CONCURRENT_MODE
+		||((padapter->pbuddy_adapter) 
+		&& ((padapter->pbuddy_adapter->bSurpriseRemoved) ||(padapter->pbuddy_adapter->bDriverStopped)))
+#endif
+		;
+
 		if (ret) {
 			RT_TRACE(_module_hal_xmit_c_, _drv_notice_,
 				 ("%s: bSurpriseRemoved(update TX FIFO page)\n", __func__));

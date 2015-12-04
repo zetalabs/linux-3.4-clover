@@ -39,7 +39,7 @@ void sreset_reset_value(_adapter *padapter)
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
 	struct sreset_priv *psrtpriv = &pHalData->srestpriv;
 
-	psrtpriv->silent_reset_inprogress = _FALSE;
+	//psrtpriv->silent_reset_inprogress = _FALSE;
 	psrtpriv->Wifi_Error_Status = WIFI_STATUS_SUCCESS;
 	psrtpriv->last_tx_time =0;
 	psrtpriv->last_tx_complete_time =0;
@@ -143,9 +143,9 @@ void sreset_restore_security_station(_adapter *padapter)
 		for(EntryId=0; EntryId<4; EntryId++)
 		{
 			if(EntryId == psecuritypriv->dot11PrivacyKeyIndex)
-				rtw_set_key(padapter,&padapter->securitypriv, EntryId, 1);
+				rtw_set_key(padapter,&padapter->securitypriv, EntryId, 1,_FALSE);
 			else
-				rtw_set_key(padapter,&padapter->securitypriv, EntryId, 0);
+				rtw_set_key(padapter,&padapter->securitypriv, EntryId, 0,_FALSE);
 		}
 
 	}
@@ -161,9 +161,9 @@ void sreset_restore_security_station(_adapter *padapter)
 		else
 		{
 			//pairwise key
-			rtw_setstakey_cmd(padapter, (unsigned char *)psta, _TRUE);
+			rtw_setstakey_cmd(padapter, (unsigned char *)psta, _TRUE,_FALSE);
 			//group key
-			rtw_set_key(padapter,&padapter->securitypriv,padapter->securitypriv.dot118021XGrpKeyid, 0);
+			rtw_set_key(padapter,&padapter->securitypriv,padapter->securitypriv.dot118021XGrpKeyid, 0,_FALSE);
 		}
 	}
 }
@@ -193,7 +193,7 @@ void sreset_restore_network_station(_adapter *padapter)
 	}
 	#endif
 	
-	rtw_setopmode_cmd(padapter, Ndis802_11Infrastructure);
+	rtw_setopmode_cmd(padapter, Ndis802_11Infrastructure,_FALSE);
 
 	{
 		u8 threshold;
@@ -233,6 +233,7 @@ void sreset_restore_network_station(_adapter *padapter)
 
 	sreset_restore_security_station(padapter);
 }
+
 
 void sreset_restore_network_status(_adapter *padapter)
 {
@@ -277,7 +278,10 @@ void sreset_stop_adapter(_adapter *padapter)
 		rtw_scan_abort(padapter);
 
 	if (check_fwstate(pmlmepriv, _FW_UNDER_LINKING))
+	{
+		rtw_set_roaming(padapter, 0);
 		_rtw_join_timeout_handler(padapter);
+	}
 
 }
 

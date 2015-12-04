@@ -171,6 +171,10 @@ uint rtw_hal_deinit(_adapter *padapter)
 	int i;
 
 _func_enter_;
+	if (!is_primary_adapter(padapter)){
+		DBG_871X(" rtw_hal_deinit: Secondary adapter return l\n");
+		return status;
+	}
 
 	status = padapter->HalFunc.hal_deinit(padapter);
 
@@ -228,6 +232,11 @@ void	rtw_hal_get_odm_var(_adapter *padapter, HAL_ODM_VARIABLE eVariable, PVOID p
 
 void rtw_hal_enable_interrupt(_adapter *padapter)
 {
+	if (!is_primary_adapter(padapter)){
+		DBG_871X(" rtw_hal_enable_interrupt: Secondary adapter return l\n");
+		return;
+	}
+	
 	if (padapter->HalFunc.enable_interrupt)
 		padapter->HalFunc.enable_interrupt(padapter);
 	else 
@@ -236,6 +245,11 @@ void rtw_hal_enable_interrupt(_adapter *padapter)
 }
 void rtw_hal_disable_interrupt(_adapter *padapter)
 {
+	if (!is_primary_adapter(padapter)){
+		DBG_871X(" rtw_hal_disable_interrupt: Secondary adapter return l\n");
+		return;
+	}
+	
 	if (padapter->HalFunc.disable_interrupt)
 		padapter->HalFunc.disable_interrupt(padapter);
 	else 

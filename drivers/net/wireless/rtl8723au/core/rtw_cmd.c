@@ -182,6 +182,7 @@ _func_enter_;
 			rtw_mfree(c2h, 16);
 		}
 	}
+	rtw_cbuf_free(pevtpriv->c2h_queue);
 #endif
 
 	RT_TRACE(_module_rtl871x_cmd_c_,_drv_info_,("-_rtw_free_evt_priv \n"));
@@ -1426,7 +1427,7 @@ _func_exit_;
 	return res;
 }
 
-u8 rtw_setopmode_cmd(_adapter  *padapter, NDIS_802_11_NETWORK_INFRASTRUCTURE networktype)
+u8 rtw_setopmode_cmd(_adapter  *padapter, NDIS_802_11_NETWORK_INFRASTRUCTURE networktype, bool enqueue)
 {
 	struct	cmd_obj*	ph2c;
 	struct	setopmode_parm* psetop;
@@ -1435,25 +1436,29 @@ u8 rtw_setopmode_cmd(_adapter  *padapter, NDIS_802_11_NETWORK_INFRASTRUCTURE net
 	u8	res=_SUCCESS;
 
 _func_enter_;
-
-	ph2c = (struct cmd_obj*)rtw_zmalloc(sizeof(struct cmd_obj));			
-	if(ph2c==NULL){
-		res= _FALSE;
-		goto exit;
-	}
 	psetop = (struct setopmode_parm*)rtw_zmalloc(sizeof(struct setopmode_parm)); 
 
-	if(psetop==NULL){
-		rtw_mfree((u8 *) ph2c, sizeof(struct	cmd_obj));
-		res=_FALSE;
+	if(psetop==NULL){		
+		res=_FAIL;
 		goto exit;
 	}
-
-	init_h2fwcmd_w_parm_no_rsp(ph2c, psetop, _SetOpMode_CMD_);
 	psetop->mode = (u8)networktype;
+	
+	if(enqueue){
+		ph2c = (struct cmd_obj*)rtw_zmalloc(sizeof(struct cmd_obj));			
+		if(ph2c==NULL){		
+			rtw_mfree((u8 *)psetop, sizeof(*psetop));
+			res= _FAIL;
+			goto exit;
+		}	
 
-	res = rtw_enqueue_cmd(pcmdpriv, ph2c);
-
+		init_h2fwcmd_w_parm_no_rsp(ph2c, psetop, _SetOpMode_CMD_);
+		res = rtw_enqueue_cmd(pcmdpriv, ph2c);
+	}
+	else{
+		setopmode_hdl(padapter, (u8 *)psetop);
+		rtw_mfree((u8 *)psetop, sizeof(*psetop));
+	}
 exit:
 
 _func_exit_;	
@@ -1461,7 +1466,7 @@ _func_exit_;
 	return res;
 }
 
-u8 rtw_setstakey_cmd(_adapter *padapter, u8 *psta, u8 unicast_key)
+u8 rtw_setstakey_cmd(_adapter *padapter, u8 *psta, u8 unicast_key, bool enqueue)
 {
 	struct cmd_obj*			ph2c;
 	struct set_stakey_parm	*psetstakey_para;
@@ -1475,40 +1480,21 @@ u8 rtw_setstakey_cmd(_adapter *padapter, u8 *psta, u8 unicast_key)
 
 _func_enter_;
 
-	ph2c = (struct cmd_obj*)rtw_zmalloc(sizeof(struct cmd_obj));
-	if ( ph2c == NULL){
-		res= _FAIL;
-		goto exit;
-	}
-
 	psetstakey_para = (struct set_stakey_parm*)rtw_zmalloc(sizeof(struct set_stakey_parm));
-	if(psetstakey_para==NULL){
-		rtw_mfree((u8 *) ph2c, sizeof(struct	cmd_obj));
+	if(psetstakey_para==NULL){	
 		res=_FAIL;
 		goto exit;
 	}
-
-	psetstakey_rsp = (struct set_stakey_rsp*)rtw_zmalloc(sizeof(struct set_stakey_rsp)); 
-	if(psetstakey_rsp == NULL){
-		rtw_mfree((u8 *) ph2c, sizeof(struct	cmd_obj));
-		rtw_mfree((u8 *) psetstakey_para, sizeof(struct set_stakey_parm));
-		res=_FAIL;
-		goto exit;
-	}
-
-	init_h2fwcmd_w_parm_no_rsp(ph2c, psetstakey_para, _SetStaKey_CMD_);
-	ph2c->rsp = (u8 *) psetstakey_rsp;
-	ph2c->rspsz = sizeof(struct set_stakey_rsp);
-
+		
 	_rtw_memcpy(psetstakey_para->addr, sta->hwaddr,ETH_ALEN);
-	
+		
 	if(check_fwstate(pmlmepriv, WIFI_STATION_STATE)){
 #ifdef CONFIG_TDLS		
 		if(sta->tdls_sta_state&TDLS_LINKED_STATE)
 			psetstakey_para->algorithm=(u8)sta->dot118021XPrivacy;
 		else
 #endif //CONFIG_TDLS
-		psetstakey_para->algorithm =(unsigned char) psecuritypriv->dot11PrivacyAlgrthm;
+			psetstakey_para->algorithm =(unsigned char) psecuritypriv->dot11PrivacyAlgrthm;
 	}else{
 		GET_ENCRY_ALGO(psecuritypriv, sta, psetstakey_para->algorithm, _FALSE);
 	}
@@ -1520,15 +1506,40 @@ _func_enter_;
 		else
 #endif //CONFIG_TDLS
 			_rtw_memcpy(&psetstakey_para->key, &sta->dot118021x_UncstKey, 16);
-        } else {
+	}
+	else {
 		_rtw_memcpy(&psetstakey_para->key, &psecuritypriv->dot118021XGrpKey[psecuritypriv->dot118021XGrpKeyid].skey, 16);
-        }
+       }
 
 	//jeff: set this becasue at least sw key is ready
 	padapter->securitypriv.busetkipkey=_TRUE;
 
-	res = rtw_enqueue_cmd(pcmdpriv, ph2c);	
+	if(enqueue)
+	{
+		ph2c = (struct cmd_obj*)rtw_zmalloc(sizeof(struct cmd_obj));
+		if ( ph2c == NULL){
+			rtw_mfree((u8 *) psetstakey_para, sizeof(struct set_stakey_parm));
+			res= _FAIL;
+			goto exit;
+		}	
 
+		psetstakey_rsp = (struct set_stakey_rsp*)rtw_zmalloc(sizeof(struct set_stakey_rsp)); 
+		if(psetstakey_rsp == NULL){
+			rtw_mfree((u8 *) ph2c, sizeof(struct cmd_obj));
+			rtw_mfree((u8 *) psetstakey_para, sizeof(struct set_stakey_parm));
+			res=_FAIL;
+			goto exit;
+		}
+
+		init_h2fwcmd_w_parm_no_rsp(ph2c, psetstakey_para, _SetStaKey_CMD_);
+		ph2c->rsp = (u8 *) psetstakey_rsp;
+		ph2c->rspsz = sizeof(struct set_stakey_rsp);
+		res = rtw_enqueue_cmd(pcmdpriv, ph2c);	
+	}
+	else{
+		set_stakey_hdl(padapter, (u8 *)psetstakey_para);
+		rtw_mfree((u8 *) psetstakey_para, sizeof(struct set_stakey_parm));
+	}
 exit:
 
 _func_exit_;	
@@ -2113,7 +2124,7 @@ _func_exit_;
 	return res;
 }
 
-#ifdef CONFIG_DETECT_CPWM_AND_C2H_BY_POLLING
+#ifdef CONFIG_DETECT_C2H_BY_POLLING
 u8 rtw_event_polling_cmd(_adapter*padapter)
 {
 	struct cmd_obj*		ph2c;
@@ -2867,12 +2878,17 @@ static void c2h_wk_callback(_workitem *work)
 }
 #endif
 
-#ifdef CONFIG_DETECT_CPWM_AND_C2H_BY_POLLING
+#ifdef CONFIG_DETECT_C2H_BY_POLLING
 void event_polling_hdl(_adapter *padapter, u8 *pbuf, int sz)
 {
 	c2h_id_filter ccx_id_filter = rtw_hal_c2h_id_filter_ccx(padapter);
-	u8 check_c2hcmd = rtw_read8(padapter, REG_C2HEVT_CLEAR);
-	u8 check_ccx = rtw_read8(padapter, REG_C2HEVT_MSG_NORMAL);
+	u8 check_c2hcmd, check_ccx;	
+
+	//check_c2hcmd = rtw_read8(padapter, REG_C2HEVT_CLEAR);
+	//check_ccx= rtw_read8(padapter, REG_C2HEVT_MSG_NORMAL);
+
+	rtw_hal_get_hwreg(padapter, HW_VAR_C2HEVT_CLEAR, (u8 *)(&check_c2hcmd));
+	rtw_hal_get_hwreg(padapter, HW_VAR_C2HEVT_MSG_NORMAL, (u8 *)(&check_ccx));
 
 	if (check_c2hcmd != 0)
 	{
@@ -2895,6 +2911,13 @@ void event_polling_hdl(_adapter *padapter, u8 *pbuf, int sz)
 					DBG_871X("%s rtw_cbuf_push fail\n", __func__);
 				_set_workitem(&padapter->evtpriv.c2h_wk);
 			}	
+		}
+		else
+		{
+			if (padapter->xmitpriv.ack_tx == _FALSE)
+			{
+				c2h_evt_clear(padapter);
+			}
 		}
 	}
 }
@@ -2962,7 +2985,7 @@ u8 rtw_drvextra_cmd_hdl(_adapter *padapter, unsigned char *pbuf)
 		case C2H_WK_CID:
 			c2h_evt_hdl(padapter, (struct c2h_evt_hdr *)pdrvextra_cmd->pbuf, NULL);
 			break;
-#ifdef CONFIG_DETECT_CPWM_AND_C2H_BY_POLLING
+#ifdef CONFIG_DETECT_C2H_BY_POLLING
 		case EVENT_POLLING_CID:
 			event_polling_hdl(padapter, pdrvextra_cmd->pbuf, pdrvextra_cmd->type_size);
 			break;

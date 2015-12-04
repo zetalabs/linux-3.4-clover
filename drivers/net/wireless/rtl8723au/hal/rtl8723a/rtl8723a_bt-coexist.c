@@ -10446,8 +10446,8 @@ void btdm_2AntCoexTable( PADAPTER	padapter,u32	val0x6c0,u32	val0x6c8,u8	val0x6cc
 	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(padapter);
 	PBTDM_8723A_2ANT	pBtdm8723 = &pHalData->bt_coexist.halCoex8723.btdm2Ant;
 
-	RTPRINT(FBT, BT_TRACE, ("[BTCoex], write Coex Table 0x6c0=0x%x, 0x6c8=0x%x, 0x6cc=0x%x\n",
-		val0x6c0, val0x6c8, val0x6cc));
+//	RTPRINT(FBT, BT_TRACE, ("[BTCoex], write Coex Table 0x6c0=0x%x, 0x6c8=0x%x, 0x6cc=0x%x\n",
+//		val0x6c0, val0x6c8, val0x6cc));
 	pBtdm8723->curVal0x6c0 = val0x6c0;
 	pBtdm8723->curVal0x6c8 = val0x6c8;
 	pBtdm8723->curVal0x6cc = val0x6cc;
@@ -10486,6 +10486,33 @@ void btdm_2AntIgnoreWlanAct(PADAPTER	padapter,u8	bEnable)
 	btdm_SetFwIgnoreWlanAct(padapter,bEnable);
 	pBtdm8723->bPreIgnoreWlanAct = pBtdm8723->bCurIgnoreWlanAct;
 }
+void btdm_2AntSetTable(PADAPTER	padapter,u8		byte){
+	u8 value;
+	u32	val0x6c0,val0x6c4;
+	value =(byte&(BIT4|BIT3))>>3;
+	
+	switch(value){
+	case 0:
+		val0x6c0=0x55555555;
+		val0x6c4=0x55555555;
+		break;
+	case 1:
+		val0x6c0=0x55555555;
+		val0x6c4=0x5afa5afa;
+		break;
+	case 2:	
+		val0x6c0=0x55ff55ff;
+		val0x6c4=0x5a5a5a5a;
+		break;
+	case 3:	
+		val0x6c0=0x55ff55ff;
+		val0x6c4=0x5afa5afa;
+		break;
+	}
+	RTPRINT(FBT, BT_TRACE, ("set coex table, set 0x6c0=0x%x 0x6c4=0x%x\n", val0x6c0, val0x6c4));
+	rtw_write32(padapter, 0x6c0, val0x6c0);
+	rtw_write32(padapter, 0x6c4, val0x6c4);
+}
 
 void btdm_2AntSetFw3a(PADAPTER	padapter,u8	byte1,u8	byte2,u8		byte3,u8		byte4,u8		byte5)
 	{
@@ -10516,6 +10543,7 @@ void btdm_2AntSetFw3a(PADAPTER	padapter,u8	byte1,u8	byte2,u8		byte3,u8		byte4,u8
 		H2C_Parameter[1]<<24|H2C_Parameter[2]<<16|H2C_Parameter[3]<<8|H2C_Parameter[4]));
 
 	FillH2CCmd(padapter, 0x3a, 5, H2C_Parameter);
+	btdm_2AntSetTable(padapter,byte5);   // Driver need to set the Coex Table value after FW version 35. 
 	}
 
 void btdm_2AntPsTdma(PADAPTER	padapter,u8	bTurnOn,u8	type)

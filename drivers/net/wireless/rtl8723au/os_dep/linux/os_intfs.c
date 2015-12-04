@@ -49,9 +49,11 @@
 
 #ifdef CONFIG_RF_GAIN_OFFSET
 #ifdef CONFIG_RTL8723A
+#define	RF_GAIN_OFFSET_ON			BIT0
 #define		REG_RF_BB_GAIN_OFFSET	0x7f
 #define		RF_GAIN_OFFSET_MASK		0xfffff
 #else
+#define	RF_GAIN_OFFSET_ON			BIT4
 #define		REG_RF_BB_GAIN_OFFSET	0x55
 #define		RF_GAIN_OFFSET_MASK		0xfffff
 #endif  //CONFIG_RTL8723A
@@ -366,6 +368,15 @@ void rtw_proc_init_one(struct net_device *dev)
 			DBG_871X("Unable to create_proc_read_entry!\n");
 			return;
 		}
+		
+#ifdef DBG_MEM_ALLOC
+		entry = create_proc_read_entry("mstat", S_IFREG | S_IRUGO,
+				   rtw_proc, proc_get_mstat, dev);
+		if (!entry) {
+			DBG_871X("Unable to create_proc_read_entry!\n");
+			return;
+		}
+#endif /* DBG_MEM_ALLOC */
 	}
 
 	
@@ -660,6 +671,50 @@ void rtw_proc_init_one(struct net_device *dev)
 	entry->write_proc = proc_set_sreset;
 #endif /* DBG_CONFIG_ERROR_DETECT */
 
+	/* for odm */
+	{
+		struct proc_dir_entry *dir_odm = NULL;
+
+		if (padapter->dir_odm == NULL) {
+			padapter->dir_odm = create_proc_entry(
+				"odm", S_IFDIR | S_IRUGO | S_IXUGO, dir_dev);
+
+			dir_odm = padapter->dir_odm;
+
+			if(dir_odm==NULL) {
+				DBG_871X("Unable to create dir_odm directory\n");
+				return;
+			}
+		}
+		else
+		{
+			return;
+		}
+
+		entry = create_proc_read_entry("dbg_comp", S_IFREG | S_IRUGO,
+					   dir_odm, proc_get_odm_dbg_comp, dev);
+		if (!entry) {
+			rtw_warn_on(1);
+			return;
+		}
+		entry->write_proc = proc_set_odm_dbg_comp;
+
+		entry = create_proc_read_entry("dbg_level", S_IFREG | S_IRUGO,
+					   dir_odm, proc_get_odm_dbg_level, dev);
+		if (!entry) {
+			rtw_warn_on(1);
+			return;
+		}
+		entry->write_proc = proc_set_odm_dbg_level;
+
+		entry = create_proc_read_entry("adaptivity", S_IFREG | S_IRUGO,
+					   dir_odm, proc_get_odm_adaptivity, dev);
+		if (!entry) {
+			rtw_warn_on(1);
+			return;
+		}
+		entry->write_proc = proc_set_odm_adaptivity;
+	}
 }
 
 void rtw_proc_remove_one(struct net_device *dev)
@@ -731,6 +786,21 @@ void rtw_proc_remove_one(struct net_device *dev)
 	remove_proc_entry("sreset", dir_dev);
 #endif /* DBG_CONFIG_ERROR_DETECT */
 
+		/* for odm */
+		{
+			struct proc_dir_entry *dir_odm = NULL;
+			dir_odm = padapter->dir_odm;
+			padapter->dir_odm = NULL;
+
+			if (dir_odm) {
+				remove_proc_entry("dbg_comp", dir_odm);
+				remove_proc_entry("dbg_level", dir_odm);
+				remove_proc_entry("adaptivity", dir_odm);
+
+				remove_proc_entry("odm", dir_dev);
+			}
+		}
+
 		remove_proc_entry(dev->name, rtw_proc);
 		dir_dev = NULL;
 		
@@ -746,7 +816,9 @@ void rtw_proc_remove_one(struct net_device *dev)
 	{
 		if(rtw_proc){
 			remove_proc_entry("ver_info", rtw_proc);
-			
+			#ifdef DBG_MEM_ALLOC
+			remove_proc_entry("mstat", rtw_proc);
+			#endif /* DBG_MEM_ALLOC */
 #if(LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24))
 			remove_proc_entry(rtw_proc_name, proc_net);
 #else
@@ -1553,7 +1625,7 @@ void rtw_cancel_all_timer(_adapter *padapter)
 	_cancel_timer_ex(&padapter->recvpriv.signal_stat_timer);
 #endif
 
-#ifdef CONFIG_DETECT_CPWM_AND_C2H_BY_POLLING
+#ifdef CONFIG_DETECT_C2H_BY_POLLING
 	_cancel_timer_ex(&padapter->mlmepriv.event_polling_timer);
 #endif
 
@@ -1695,8 +1767,7 @@ int _netdev_if2_open(struct net_device *pnetdev)
 		{
 			padapter->intf_start(padapter);
 		}
-
-		padapter->dir_dev = NULL;
+	
 		rtw_proc_init_one(pnetdev);
 
 
@@ -1816,7 +1887,8 @@ _adapter *rtw_drv_if2_init(_adapter *primary_padapter, void (*set_intf_ops)(stru
 	padapter->bup = _FALSE;
 	padapter->net_closed = _TRUE;
 	padapter->hw_init_completed = _FALSE;
-
+	padapter->dir_dev = NULL;
+	padapter->dir_odm = NULL;
 
 	//set adapter_type/iface type
 	padapter->isprimary = _FALSE;
@@ -1898,9 +1970,7 @@ _adapter *rtw_drv_if2_init(_adapter *primary_padapter, void (*set_intf_ops)(stru
 	_rtw_memcpy(padapter->eeprompriv.mac_addr, mac, ETH_ALEN);
 	rtw_init_wifidirect_addrs(padapter, padapter->eeprompriv.mac_addr, padapter->eeprompriv.mac_addr);
 
-	primary_padapter->pbuddy_adapter = padapter;	
-	
-	padapter->dir_dev = NULL;
+	primary_padapter->pbuddy_adapter = padapter;
 
 	res = _SUCCESS;
 
@@ -2162,7 +2232,7 @@ int _netdev_open(struct net_device *pnetdev)
 
 	_set_timer(&padapter->mlmepriv.dynamic_chk_timer, 2000);
 
-#ifdef CONFIG_DETECT_CPWM_AND_C2H_BY_POLLING
+#ifdef CONFIG_DETECT_C2H_BY_POLLING
 	_set_timer(&padapter->mlmepriv.event_polling_timer, 200);
 #endif
 
@@ -2320,11 +2390,12 @@ void rtw_bb_rf_gain_offset(_adapter *padapter)
 	u32     res;
 
 	DBG_871X("+%s value: 0x%02x+\n", __func__, value);
-#ifdef CONFIG_RTL8723A
-	if (value & BIT0) {
+
+	if (value & RF_GAIN_OFFSET_ON) {
 		//DBG_871X("Offset RF Gain.\n");
 		//DBG_871X("Offset RF Gain.  padapter->eeprompriv.EEPROMRFGainVal=0x%x\n",padapter->eeprompriv.EEPROMRFGainVal);
 		if(padapter->eeprompriv.EEPROMRFGainVal != 0xff){
+#ifdef CONFIG_RTL8723A
 			res = rtw_hal_read_rfreg(padapter, RF_PATH_A, 0xd, 0xffffffff);
 			//DBG_871X("Offset RF Gain. reg 0xd=0x%x\n",res);
 			res &= 0xfff87fff;
@@ -2342,6 +2413,14 @@ void rtw_bb_rf_gain_offset(_adapter *padapter)
 			//DBG_871X("Offset RF Gain.    reg 0xe=0x%x\n",res);
 
 			rtw_hal_write_rfreg(padapter, RF_PATH_A, REG_RF_BB_GAIN_OFFSET, RF_GAIN_OFFSET_MASK, res);
+#else
+			res = rtw_hal_read_rfreg(padapter, RF_PATH_A, REG_RF_BB_GAIN_OFFSET, 0xffffffff);
+			DBG_871X("REG_RF_BB_GAIN_OFFSET=%x \n",res);
+			res &= 0xfff87fff;
+			res |= (padapter->eeprompriv.EEPROMRFGainVal & 0x0f)<< 15;
+			DBG_871X("write REG_RF_BB_GAIN_OFFSET=%x \n",res);
+			rtw_hal_write_rfreg(padapter, RF_PATH_A, REG_RF_BB_GAIN_OFFSET, RF_GAIN_OFFSET_MASK, res);
+#endif
 		}
 		else
 		{
@@ -2350,19 +2429,7 @@ void rtw_bb_rf_gain_offset(_adapter *padapter)
 	} else {
 		//DBG_871X("Using the default RF gain.\n");
 	}
-#else
 
-	if (!(value & 0x01)) {
-		DBG_871X("Offset RF Gain.\n");
-		res = rtw_hal_read_rfreg(padapter, RF_PATH_A, REG_RF_BB_GAIN_OFFSET, 0xffffffff);
-		value &= tmp;
-		res = value << 14;
-		rtw_hal_write_rfreg(padapter, RF_PATH_A, REG_RF_BB_GAIN_OFFSET, RF_GAIN_OFFSET_MASK, res);
-	} else {
-		DBG_871X("Using the default RF gain.\n");
-	}
-#endif
-	
 }
 #endif //CONFIG_RF_GAIN_OFFSET
 
@@ -2753,3 +2820,168 @@ int	rtw_gw_addr_query(_adapter *padapter)
 } 
 #endif
 
+int rtw_suspend_free_assoc_resource(_adapter *padapter)
+{
+	struct mlme_priv *pmlmepriv = &padapter->mlmepriv;
+	struct net_device *pnetdev = padapter->pnetdev;
+	struct wifidirect_info*	pwdinfo = &padapter->wdinfo;
+
+	DBG_871X("==> "FUNC_ADPT_FMT" entry....\n", FUNC_ADPT_ARG(padapter));
+	
+	rtw_cancel_all_timer(padapter);
+	if(pnetdev){
+		netif_carrier_off(pnetdev);
+		rtw_netif_stop_queue(pnetdev);
+	}		
+
+	#ifdef CONFIG_LAYER2_ROAMING_RESUME
+	if(check_fwstate(pmlmepriv, WIFI_STATION_STATE) && check_fwstate(pmlmepriv, _FW_LINKED) && rtw_p2p_chk_state(pwdinfo, P2P_STATE_NONE))
+	{
+		DBG_871X("%s %s(" MAC_FMT "), length:%d assoc_ssid.length:%d\n",__FUNCTION__,
+				pmlmepriv->cur_network.network.Ssid.Ssid,
+				MAC_ARG(pmlmepriv->cur_network.network.MacAddress),
+				pmlmepriv->cur_network.network.Ssid.SsidLength,
+				pmlmepriv->assoc_ssid.SsidLength);
+		rtw_set_roaming(padapter, 1);
+	}
+	#endif //CONFIG_LAYER2_ROAMING_RESUME
+
+	if(check_fwstate(pmlmepriv, WIFI_STATION_STATE) && check_fwstate(pmlmepriv, _FW_LINKED))
+	{	
+		rtw_disassoc_cmd(padapter, 0, _FALSE);		
+	}
+	#ifdef CONFIG_AP_MODE
+	else if(check_fwstate(pmlmepriv, WIFI_AP_STATE))	
+	{
+		rtw_sta_flush(padapter);
+	}
+	#endif
+	if(check_fwstate(pmlmepriv, WIFI_STATION_STATE) ){
+		//s2-2.  indicate disconnect to os
+		rtw_indicate_disconnect(padapter);
+	}
+		
+	//s2-3.
+	rtw_free_assoc_resources(padapter, 1);
+
+	//s2-4.
+#ifdef CONFIG_AUTOSUSPEND
+	if(is_primary_adapter(padapter) && (!adapter_to_pwrctl(padapter)->bInternalAutoSuspend ))
+#endif
+	rtw_free_network_queue(padapter, _TRUE);
+
+	if(check_fwstate(pmlmepriv, _FW_UNDER_SURVEY))
+		rtw_indicate_scan_done(padapter, 1);
+	
+	DBG_871X("==> "FUNC_ADPT_FMT" exit....\n", FUNC_ADPT_ARG(padapter));
+	return 0;
+}
+extern void rtw_dev_unload(_adapter *padapter);
+int rtw_suspend_common(_adapter *padapter)
+{
+	struct pwrctrl_priv *pwrpriv = adapter_to_pwrctl(padapter);
+	struct mlme_priv *pmlmepriv = &padapter->mlmepriv;
+	
+	int ret = 0;
+	_func_enter_;
+	LeaveAllPowerSaveMode(padapter);
+	
+	rtw_suspend_free_assoc_resource(padapter);
+
+#ifdef CONFIG_CONCURRENT_MODE
+	if(rtw_buddy_adapter_up(padapter)){
+		rtw_suspend_free_assoc_resource(padapter->pbuddy_adapter);
+	}
+#endif
+	rtw_led_control(padapter, LED_CTL_POWER_OFF);
+	
+#ifdef CONFIG_CONCURRENT_MODE
+	if(rtw_buddy_adapter_up(padapter)){
+		rtw_dev_unload(padapter->pbuddy_adapter);
+	}
+#endif
+	rtw_dev_unload(padapter);
+
+exit:
+
+	_func_exit_;
+	return ret;
+}
+
+int rtw_resume_common(_adapter *padapter)
+{
+	int ret = 0;
+	struct net_device *pnetdev= padapter->pnetdev;
+	struct pwrctrl_priv *pwrpriv = adapter_to_pwrctl(padapter);
+	struct mlme_priv *mlmepriv = &padapter->mlmepriv;
+
+	_func_enter_;
+
+	#ifdef CONFIG_CONCURRENT_MODE
+	rtw_reset_drv_sw(padapter->pbuddy_adapter);
+	#endif
+
+	rtw_reset_drv_sw(padapter);
+	pwrpriv->bkeepfwalive = _FALSE;
+
+	DBG_871X("bkeepfwalive(%x)\n",pwrpriv->bkeepfwalive);
+	if(pm_netdev_open(pnetdev,_TRUE) != 0) {
+		DBG_871X("%s ==> pm_netdev_open failed \n",__FUNCTION__);
+		ret = -1;
+		return ret;
+	}
+
+	netif_device_attach(pnetdev);
+	netif_carrier_on(pnetdev);
+
+	
+	#ifdef CONFIG_CONCURRENT_MODE
+	if(rtw_buddy_adapter_up(padapter)){			
+		pnetdev = padapter->pbuddy_adapter->pnetdev;				
+		
+		netif_device_attach(pnetdev);
+		netif_carrier_on(pnetdev);	
+	}
+	#endif
+
+	if (check_fwstate(mlmepriv, WIFI_STATION_STATE)) {
+		DBG_871X(FUNC_ADPT_FMT" fwstate:0x%08x - WIFI_STATION_STATE\n", FUNC_ADPT_ARG(padapter), get_fwstate(mlmepriv));
+
+		#ifdef CONFIG_LAYER2_ROAMING_RESUME
+		rtw_roaming(padapter, NULL);
+		#endif //CONFIG_LAYER2_ROAMING_RESUME
+		
+	} else if (check_fwstate(mlmepriv, WIFI_AP_STATE)) {
+		DBG_871X(FUNC_ADPT_FMT" fwstate:0x%08x - WIFI_AP_STATE\n", FUNC_ADPT_ARG(padapter), get_fwstate(mlmepriv));
+		rtw_ap_restore_network(padapter);
+	} else if (check_fwstate(mlmepriv, WIFI_ADHOC_STATE)) {
+		DBG_871X(FUNC_ADPT_FMT" fwstate:0x%08x - WIFI_ADHOC_STATE\n", FUNC_ADPT_ARG(padapter), get_fwstate(mlmepriv));
+	} else {
+		DBG_871X(FUNC_ADPT_FMT" fwstate:0x%08x - ???\n", FUNC_ADPT_ARG(padapter), get_fwstate(mlmepriv));
+	}
+
+	#ifdef CONFIG_CONCURRENT_MODE
+	if(rtw_buddy_adapter_up(padapter))
+	{	
+		mlmepriv = &padapter->pbuddy_adapter->mlmepriv;	
+		if (check_fwstate(mlmepriv, WIFI_STATION_STATE)) {
+			DBG_871X(FUNC_ADPT_FMT" fwstate:0x%08x - WIFI_STATION_STATE\n", FUNC_ADPT_ARG(padapter), get_fwstate(mlmepriv));
+
+			#ifdef CONFIG_LAYER2_ROAMING_RESUME
+			rtw_roaming(padapter->pbuddy_adapter, NULL);
+			#endif //CONFIG_LAYER2_ROAMING_RESUME
+		
+		} else if (check_fwstate(mlmepriv, WIFI_AP_STATE)) {
+			DBG_871X(FUNC_ADPT_FMT" fwstate:0x%08x - WIFI_AP_STATE\n", FUNC_ADPT_ARG(padapter), get_fwstate(mlmepriv));
+			rtw_ap_restore_network(padapter->pbuddy_adapter);
+		} else if (check_fwstate(mlmepriv, WIFI_ADHOC_STATE)) {
+			DBG_871X(FUNC_ADPT_FMT" fwstate:0x%08x - WIFI_ADHOC_STATE\n", FUNC_ADPT_ARG(padapter), get_fwstate(mlmepriv));
+		} else {
+			DBG_871X(FUNC_ADPT_FMT" fwstate:0x%08x - ???\n", FUNC_ADPT_ARG(padapter), get_fwstate(mlmepriv));
+		}
+	}
+	#endif
+	
+	_func_exit_;
+	return ret;
+}

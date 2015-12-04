@@ -113,7 +113,7 @@ void _rtw_set_scan_deny_timer_hdl(void *FunctionContext)
 }
 #endif
 
-#ifdef CONFIG_DETECT_CPWM_AND_C2H_BY_POLLING
+#ifdef CONFIG_DETECT_C2H_BY_POLLING
 void _rtw_event_polling_timer_hdl(void *FunctionContext)
 {
 	_adapter *adapter = (_adapter *)FunctionContext;
@@ -138,7 +138,7 @@ void rtw_init_mlme_timer(_adapter *padapter)
 	_init_timer(&(pmlmepriv->set_scan_deny_timer), padapter->pnetdev, _rtw_set_scan_deny_timer_hdl, padapter);
 	#endif
 
-#ifdef CONFIG_DETECT_CPWM_AND_C2H_BY_POLLING
+#ifdef CONFIG_DETECT_C2H_BY_POLLING
 	_init_timer(&(pmlmepriv->event_polling_timer), padapter->pnetdev, _rtw_event_polling_timer_hdl, padapter);
 #endif
 
