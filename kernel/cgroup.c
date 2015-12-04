@@ -62,6 +62,7 @@
 #include <linux/flex_array.h> /* used in cgroup_attach_proc */
 
 #include <linux/atomic.h>
+#include <linux/cpu.h>
 
 /*
  * cgroup_mutex is the master lock.  Any modification to cgroup or its
@@ -2246,7 +2247,15 @@ out_unlock_cgroup:
 
 static int cgroup_tasks_write(struct cgroup *cgrp, struct cftype *cft, u64 pid)
 {
+#ifdef CONFIG_CPUSETS
+    int ret;
+    get_online_cpus();
+    ret = attach_task_by_pid(cgrp, pid, false);
+    put_online_cpus();
+	return ret;
+#else
 	return attach_task_by_pid(cgrp, pid, false);
+#endif
 }
 
 static int cgroup_procs_write(struct cgroup *cgrp, struct cftype *cft, u64 tgid)
