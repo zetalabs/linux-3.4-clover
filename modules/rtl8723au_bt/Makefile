@@ -13,8 +13,6 @@ obj-m+=rtk_btusb.o
 
 install: build
 	cp rtk_btusb.ko $(LICHEE_MOD_DIR)/
-	cp rtl8723a_fw $(LICHEE_MOD_DIR)/rtl8723a_fw.ko
-	cp rtl8723a_config.bin $(LICHEE_MOD_DIR)/rtl8723a_config.bin.ko
 
 build:
 	@echo $(LICHEE_KDIR)
