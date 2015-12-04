@@ -48,7 +48,7 @@ static const struct snd_pcm_hardware sun7i_pcm_play_hardware = {
 	.channels_min		= 1,
 	.channels_max		= 2,
 	.buffer_bytes_max	= 128*1024,    /* value must be (2^n)Kbyte size */
-	.period_bytes_min	= 1024*4,//1024*4,
+	.period_bytes_min	= 1024,//1024*4,
 	.period_bytes_max	= 1024*32,//1024*32,
 	.periods_min		= 4,//4,
 	.periods_max		= 8,//8,
@@ -66,7 +66,7 @@ static const struct snd_pcm_hardware sun7i_pcm_capture_hardware = {
 	.channels_min		= 1,
 	.channels_max		= 2,
 	.buffer_bytes_max	= 128*1024,    /* value must be (2^n)Kbyte size */
-	.period_bytes_min	= 1024*4,//1024*4,
+	.period_bytes_min	= 1024,//1024*4,  //hx
 	.period_bytes_max	= 1024*32,//1024*32,
 	.periods_min		= 4,//4,
 	.periods_max		= 8,//8,
@@ -445,9 +445,9 @@ static int sun7i_pcm_prepare(struct snd_pcm_substream *substream)
 
 			memset(&codec_play_dma_conf, 0, sizeof(codec_play_dma_conf));		
 			codec_play_dma_conf.xfer_type.src_data_width 	= DATA_WIDTH_16BIT;		
-			codec_play_dma_conf.xfer_type.src_bst_len 	= DATA_BRST_1;		
+			codec_play_dma_conf.xfer_type.src_bst_len 	= DATA_BRST_4;	
 			codec_play_dma_conf.xfer_type.dst_data_width 	= DATA_WIDTH_16BIT;		
-			codec_play_dma_conf.xfer_type.dst_bst_len 	= DATA_BRST_1;		
+			codec_play_dma_conf.xfer_type.dst_bst_len 	= DATA_BRST_4;		
 			codec_play_dma_conf.address_type.src_addr_mode 	= NDMA_ADDR_INCREMENT;		
 			codec_play_dma_conf.address_type.dst_addr_mode 	= NDMA_ADDR_NOCHANGE;		
 			codec_play_dma_conf.src_drq_type 	= N_SRC_SDRAM;		
@@ -477,9 +477,9 @@ static int sun7i_pcm_prepare(struct snd_pcm_substream *substream)
 		/*pr_info("CAPTUR:sun7i_i2sdma.c::func:%s(line:%d)\n",__func__,__LINE__);*/
 		memset(&codec_capture_dma_conf, 0, sizeof(codec_capture_dma_conf));		
 		codec_capture_dma_conf.xfer_type.src_data_width 	= DATA_WIDTH_16BIT;		
-		codec_capture_dma_conf.xfer_type.src_bst_len 	= DATA_BRST_1;		
+		codec_capture_dma_conf.xfer_type.src_bst_len 	= DATA_BRST_4;		
 		codec_capture_dma_conf.xfer_type.dst_data_width 	= DATA_WIDTH_16BIT;		
-		codec_capture_dma_conf.xfer_type.dst_bst_len 	= DATA_BRST_1;		
+		codec_capture_dma_conf.xfer_type.dst_bst_len 	= DATA_BRST_4;		
 		codec_capture_dma_conf.address_type.src_addr_mode 	= NDMA_ADDR_NOCHANGE;		
 		codec_capture_dma_conf.address_type.dst_addr_mode 	= NDMA_ADDR_INCREMENT;		
 		codec_capture_dma_conf.src_drq_type 	= N_SRC_IIS0_RX;		

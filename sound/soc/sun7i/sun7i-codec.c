@@ -33,7 +33,7 @@
 #include <mach/sys_config.h>
 #include <mach/system.h>
 #include <sound/soc.h>
-
+#define SRAM 1
 static int capture_used = 1;
 static int hp_mute_used = 1;
 static script_item_u item;
@@ -43,8 +43,14 @@ static volatile unsigned int capture_dmasrc = 0;
 static volatile unsigned int capture_dmadst = 0;
 static volatile unsigned int play_dmasrc 	= 0;
 static volatile unsigned int play_dmadst 	= 0;
+static bool codec_adcphonein_en 		= false;
+static bool codec_dacphoneout_en 		= false;
 static bool codec_speakerout_enabled 		= false;
 static bool codec_phoneout_enabled = false;
+static bool codec_phonein_en 			= false;
+static bool codec_phoneout_en 			= false;
+static bool codec_voice_record_en 		= false;
+static bool codec_mainmic_en 		= false;
 static bool codec_phonemic_enabled = false;
 static bool codec_headsetmic_enabled = false;
 static bool codec_dacphoneout_enabled = false;
@@ -296,36 +302,113 @@ static  int codec_init(void)
 	return 0;
 }
 
-static int codec_play_open(struct snd_pcm_substream *substream)
+static int codec_dacphoneout_open(struct snd_pcm_substream *substream)
 {
-	int max_add =0x0;
-
 	//pa mute
 	codec_wr_control(SUN7I_DAC_ACTL, 0x1, PA_MUTE, 0x0);
-	codec_wr_control(SUN7I_DAC_DPC, 0x1, DAC_EN, 0x1);
-	codec_wr_control(SUN7I_DAC_FIFOC, 0x1, DAC_FIFO_FLUSH, 0x1);
+	codec_wr_control(SUN7I_DAC_DPC ,  0x1, DAC_EN, 0x1);
+	codec_wr_control(SUN7I_DAC_FIFOC ,0x1, DAC_FIFO_FLUSH, 0x1);
 	//set TX FIFO send drq level
-	codec_wr_control(SUN7I_DAC_FIFOC, 0x4, TX_TRI_LEVEL, 0xf);
+	codec_wr_control(SUN7I_DAC_FIFOC ,0x4, TX_TRI_LEVEL, 0xf);
 	if (substream->runtime->rate > 32000) {
 		codec_wr_control(SUN7I_DAC_FIFOC ,  0x1,28, 0x0);
 	} else {
 		codec_wr_control(SUN7I_DAC_FIFOC ,  0x1,28, 0x1);
 	}
 	//set TX FIFO MODE
-	codec_wr_control(SUN7I_DAC_FIFOC, 0x1, TX_FIFO_MODE, 0x1);
+	codec_wr_control(SUN7I_DAC_FIFOC ,0x1, TX_FIFO_MODE, 0x1);
 	//send last sample when dac fifo under run
-	codec_wr_control(SUN7I_DAC_FIFOC, 0x1, LAST_SE, 0x0);
+	codec_wr_control(SUN7I_DAC_FIFOC ,0x1, LAST_SE, 0x0);
 	//enable dac analog
 	codec_wr_control(SUN7I_DAC_ACTL, 0x1, 	DACAEN_L, 0x1);
 	codec_wr_control(SUN7I_DAC_ACTL, 0x1, 	DACAEN_R, 0x1);
 	//enable dac to pa
 	codec_wr_control(SUN7I_DAC_ACTL, 0x1, 	DACPAS, 0x1);
-	for(max_add=0X0; max_add<=0x3b; max_add++) {
-		codec_wr_control(SUN7I_DAC_ACTL, 0x3f, VOLUME, max_add);
-		usleep_range(3000, 4000);
-	}
+
+	codec_wr_control(SUN7I_MIC_CRT, 0x1, RIGRT_PHONEOUT, 0x1);
+	codec_wr_control(SUN7I_MIC_CRT, 0x1, LEFT_PHONEOUT, 0x1);
+
 	return 0;
 }
+
+static int codec_play_open(struct snd_pcm_substream *substream)
+{
+	//pa mute
+	codec_wr_control(SUN7I_DAC_ACTL, 0x1, PA_MUTE, 0x0);
+	codec_wr_control(SUN7I_DAC_DPC ,  0x1, DAC_EN, 0x1);
+	codec_wr_control(SUN7I_DAC_FIFOC ,0x1, DAC_FIFO_FLUSH, 0x1);
+	//set TX FIFO send drq level
+	codec_wr_control(SUN7I_DAC_FIFOC ,0x4, TX_TRI_LEVEL, 0xf);
+	if (substream->runtime->rate > 32000) {
+		codec_wr_control(SUN7I_DAC_FIFOC ,  0x1,28, 0x0);
+	} else {
+		codec_wr_control(SUN7I_DAC_FIFOC ,  0x1,28, 0x1);
+	}
+	//set TX FIFO MODE
+	codec_wr_control(SUN7I_DAC_FIFOC ,0x1, TX_FIFO_MODE, 0x1);
+	//send last sample when dac fifo under run
+	codec_wr_control(SUN7I_DAC_FIFOC ,0x1, LAST_SE, 0x0);
+	//enable dac analog
+	codec_wr_control(SUN7I_DAC_ACTL, 0x1, 	DACAEN_L, 0x1);
+	codec_wr_control(SUN7I_DAC_ACTL, 0x1, 	DACAEN_R, 0x1);
+	//enable dac to pa
+	codec_wr_control(SUN7I_DAC_ACTL, 0x1, 	DACPAS, 0x1);
+	int max_add =0x0;     
+	for(max_add=0X0;max_add<=0x3b;max_add++){
+		codec_wr_control(SUN7I_DAC_ACTL, 0x3f, VOLUME, max_add);
+		usleep_range(3000,4000);
+		}
+	return 0;
+}
+
+static int codec_adcphonein_open(void)
+{
+	 //enable mic1 pa
+	 codec_wr_control(SUN7I_ADC_ACTL, 0x1, MIC1_EN, 0x1);
+	 //mic1 gain 32dB
+	 codec_wr_control(SUN7I_MIC_CRT, 0x3,mic1_preg1,0x1);
+	  //enable VMIC
+	 codec_wr_control(SUN7I_ADC_ACTL, 0x1, VMIC_EN, 0x1);
+	 //boost up record effect
+	 codec_wr_control(SUN7I_DAC_TUNE, 0x3,8,0x3);
+	 //enable adc digital
+	 codec_wr_control(SUN7I_ADC_FIFOC, 0x1,ADC_DIG_EN, 0x1);
+	 //set RX FIFO mode
+	 codec_wr_control(SUN7I_ADC_FIFOC, 0x1, RX_FIFO_MODE, 0x1);
+	 //flush RX FIFO
+	 codec_wr_control(SUN7I_ADC_FIFOC, 0x1, ADC_FIFO_FLUSH, 0x1);
+	 //set RX FIFO rec drq level
+	 codec_wr_control(SUN7I_ADC_FIFOC, 0xf, RX_TRI_LEVEL, 0x7);
+	 //enable adc analog
+	 codec_wr_control(SUN7I_ADC_ACTL, 0x1,  ADC_LF_EN, 0x1);
+	 codec_wr_control(SUN7I_ADC_ACTL, 0x1,  ADC_RI_EN, 0x1);
+	 return 0;
+}
+
+static int codec_voice_main_mic_capture_open(void)
+{
+	 //enable mic1 pa
+	 codec_wr_control(SUN7I_ADC_ACTL, 0x1, MIC1_EN, 0x1);
+	 //mic1 gain 32dB
+	 codec_wr_control(SUN7I_MIC_CRT, 0x3,mic1_preg1,0x1);
+	  //enable VMIC
+	 codec_wr_control(SUN7I_ADC_ACTL, 0x1, VMIC_EN, 0x1);
+	 //boost up record effect
+	 codec_wr_control(SUN7I_DAC_TUNE, 0x3,8,0x3);
+	 //enable adc digital
+	 codec_wr_control(SUN7I_ADC_FIFOC, 0x1,ADC_DIG_EN, 0x1);
+	 //set RX FIFO mode
+	 codec_wr_control(SUN7I_ADC_FIFOC, 0x1, RX_FIFO_MODE, 0x1);
+	 //flush RX FIFO
+	 codec_wr_control(SUN7I_ADC_FIFOC, 0x1, ADC_FIFO_FLUSH, 0x1);
+	 //set RX FIFO rec drq level
+	 codec_wr_control(SUN7I_ADC_FIFOC, 0xf, RX_TRI_LEVEL, 0x7);
+	 //enable adc analog
+	 codec_wr_control(SUN7I_ADC_ACTL, 0x1,  ADC_LF_EN, 0x1);
+	 codec_wr_control(SUN7I_ADC_ACTL, 0x1,  ADC_RI_EN, 0x1);
+	 return 0;
+}
+
 
 static int codec_capture_open(void)
 {
@@ -485,6 +568,32 @@ static int codec_get_earpieceout(struct snd_kcontrol *kcontrol,
 }
 
 /*
+*	codec_adcphonein_en == 1, the adc phone in is open. you can record the phonein from adc.
+*	codec_adcphonein_en == 0,	the adc phone in is close.
+*/
+static int codec_set_adcphonein(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	int ret = 0;
+	codec_adcphonein_en = ucontrol->value.integer.value[0];
+
+	if (codec_adcphonein_en) {
+		ret = codec_adcphonein_open();
+	} else {
+		;
+	}
+
+	return ret;
+}
+
+static int codec_get_adcphonein(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = codec_adcphonein_en;
+	return 0;
+}
+
+/*
 *	codec_adcphonein_enabled == 1, the adc phone in is open. you can record the phonein from adc.
 *	codec_adcphonein_enabled == 0,	the adc phone in is close.
 */
@@ -575,6 +684,42 @@ static int codec_get_phonemic(struct snd_kcontrol *kcontrol,
 }
 
 /*
+*	codec_mainmic_enabled == 1, open mic1.
+*	codec_mainmic_enabled == 0, close mic1.
+*/
+static int codec_set_mainmic(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	codec_mainmic_en = ucontrol->value.integer.value[0];
+	if (codec_mainmic_en) {
+		/*close mic2 pa*/
+		codec_wr_control(SUN7I_ADC_ACTL, 0x1, MIC2_EN, 0x0);
+		/*enable mic1 pa*/
+	 	codec_wr_control(SUN7I_ADC_ACTL, 0x1, MIC1_EN, 0x1);
+		/*enable  VMIC bias*/
+		codec_wr_control(SUN7I_ADC_ACTL, 0x1, VMIC_EN, 0x1);
+		
+		/*enable Right MIC1 Boost stage*/
+		codec_wr_control(SUN7I_MIC_CRT, 0x1, RIGRT_PHONEOUT, 0x1);
+		/*enable Left MIC1 Boost stage*/
+		codec_wr_control(SUN7I_MIC_CRT, 0x1, LEFT_PHONEOUT, 0x1);
+		
+	} else {
+		/*disable mic pa*/
+		codec_wr_control(SUN7I_ADC_ACTL, 0x1, MIC1_EN, 0x0);
+	}
+
+	return 0;
+}
+
+static int codec_get_mainmic(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = codec_mainmic_en;
+	return 0;
+}
+
+/*
 *	codec_phoneout_enabled == 1, the phone out is open. receiver can hear the voice which you say.
 *	codec_phoneout_enabled == 0,	the phone out is close.
 */
@@ -598,6 +743,50 @@ static int codec_get_phoneout(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+/*
+*	codec_phonein_en == 1, the phone in is open.
+*	while you open one of the device(speaker,earpiece,headphone).
+*	you can hear the caller's voice.
+*	codec_phonein_en == 0. the phone in is close.
+*/
+static int codec_set_phonein(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	codec_phonein_en = ucontrol->value.integer.value[0];
+
+	if (codec_phonein_en) {
+		;
+	} else {
+		;
+	}
+
+	return 0;
+}
+
+static int codec_get_phonein(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = codec_phonein_en;
+	return 0;
+}
+
+/*
+*	codec_voice_record_en == 1, set status.
+*	codec_voice_record_en == 0, set status.
+*/
+static int codec_set_voicerecord(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	codec_voice_record_en = ucontrol->value.integer.value[0];
+	return 0;
+}
+
+static int codec_get_voicerecord(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = codec_voice_record_en;
+	return 0;
+}
 static int codec_set_headsetmic(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
 {
@@ -681,6 +870,39 @@ static int codec_get_phone_capture(struct snd_kcontrol *kcontrol,
 	ucontrol->value.integer.value[0] = codec_phone_capture_enabled;
 	return 0;
 }
+
+/*
+*	close all phone routeway
+*/
+static int codec_set_endcall(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	/*close dac phoneout routeway*/
+	codec_wr_control(SUN7I_MIC_CRT, 0x1, RIGRT_PHONEOUT, 0x0);
+	codec_wr_control(SUN7I_MIC_CRT, 0x1, LEFT_PHONEOUT, 0x0);
+
+	/*close headset mic(mic2)*/
+	codec_wr_control(SUN7I_ADC_ACTL, 0x1, MIC1_EN, 0x0);
+	codec_wr_control(SUN7I_ADC_ACTL, 0x1, MIC2_EN, 0x0);
+	
+	
+	/*disable phone out*/
+	codec_wr_control(SUN7I_MIC_CRT, 0x1, PHONEOUT_EN, 0x0);
+	
+	/*set all routeway flag false*/
+	codec_adcphonein_en 	= 0;
+	codec_dacphoneout_en	= 0;
+
+	codec_phoneout_en		= 0;
+	codec_phonein_en		= 0;
+	return 0;
+}
+
+static int codec_get_endcall(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	return 0;
+}
 /*
 * 	.info = snd_codec_info_volsw, .get = snd_codec_get_volsw,\.put = snd_codec_put_volsw, 
 */
@@ -720,10 +942,15 @@ static const struct snd_kcontrol_new codec_snd_controls[] = {
 	/*Mobile phone down simulation channel interface*/	
 	SOC_SINGLE_BOOL_EXT("Audio earpiece out", 0, codec_get_earpieceout, codec_set_earpieceout),		  
 	/*Mobile phone uplink analog channel interface */	
-	SOC_SINGLE_BOOL_EXT("Audio dac phoneout", 0, codec_get_dacphoneout, codec_set_dacphoneout),    		
 	SOC_SINGLE_BOOL_EXT("Audio phone phonemic", 0, codec_get_phonemic, codec_set_phonemic),//mic1
+	SOC_SINGLE_BOOL_EXT("Audio phone mic", 	0, codec_get_mainmic, codec_set_mainmic), /*set main mic(mic1)*/
 	SOC_SINGLE_BOOL_EXT("Audio phone out", 0, codec_get_phoneout, codec_set_phoneout),	
+	SOC_SINGLE_BOOL_EXT("Audio phone in", 	0, codec_get_phonein, 	codec_set_phonein),					/*open the phone in call*/
 	SOC_SINGLE_BOOL_EXT("Audio phone headsetmic", 0, codec_get_headsetmic, codec_set_headsetmic),
+	SOC_SINGLE_BOOL_EXT("Audio phone endcall", 	0, codec_get_endcall, 	codec_set_endcall),    				/*set voicerecord status*/
+	SOC_SINGLE_BOOL_EXT("Audio adc phonein", 	0, codec_get_adcphonein, 	codec_set_adcphonein), 			/*bluetooth voice*/
+	SOC_SINGLE_BOOL_EXT("Audio dac phoneout", 	0, codec_get_dacphoneout, 	codec_set_dacphoneout),    		/*bluetooth voice */
+	SOC_SINGLE_BOOL_EXT("Audio phone voicerecord", 	0, codec_get_voicerecord, 	codec_set_voicerecord),   	/*set voicerecord status*/
 	/*for phone capture IO*/
 	SOC_SINGLE_BOOL_EXT("Audio phone capture", 0, codec_get_phone_capture, codec_set_phone_capture), 
 };
@@ -764,6 +991,8 @@ static void sun7i_pcm_enqueue(struct snd_pcm_substream *substream)
 		play_pos 	= play_prtd->dma_pos;
 		play_len 	= play_prtd->dma_period;
 		play_limit 	= play_prtd->dma_limit; 
+		if(NULL == play_prtd->dma_hdl) 
+			return;
 		while (play_prtd->dma_loaded < play_limit) {
 			if ((play_pos + play_len) > play_prtd->dma_end) {
 				play_len  = play_prtd->dma_end - play_pos;
@@ -879,7 +1108,11 @@ static int sun7i_codec_pcm_hw_params(struct snd_pcm_substream *substream, struct
 	  	play_runtime 	= substream->runtime;
 		play_prtd 		= play_runtime->private_data;
 		play_totbytes 	= params_buffer_bytes(params);
+		#if SRAM 
 		//snd_pcm_lib_malloc_pages(substream, params_buffer_bytes(params));
+		#else
+			snd_pcm_lib_malloc_pages(substream, params_buffer_bytes(params));
+		#endif
 		if (play_prtd->params == NULL) {
 			play_prtd->params = &sun7i_codec_pcm_stereo_play;			
 			/*
@@ -903,8 +1136,10 @@ static int sun7i_codec_pcm_hw_params(struct snd_pcm_substream *substream, struct
 				sw_dma_release(play_prtd->dma_hdl);
 				return -EINVAL;
 			}
-			substream->dma_buffer.addr = 0x00020000;
-			substream->dma_buffer.area = (unsigned char *)0xf0020000;
+			#if SRAM
+				substream->dma_buffer.addr = 0x00020000;
+				substream->dma_buffer.area = 0xf0020000;
+			#endif
 			snd_pcm_set_runtime_buffer(substream, &substream->dma_buffer);
 			play_runtime->dma_bytes = play_totbytes;
    			spin_lock_irq(&play_prtd->lock);
@@ -921,7 +1156,11 @@ static int sun7i_codec_pcm_hw_params(struct snd_pcm_substream *substream, struct
 		capture_runtime 	= substream->runtime;
 		capture_prtd 		= capture_runtime->private_data;
 		capture_totbytes 	= params_buffer_bytes(params);
-		//snd_pcm_lib_malloc_pages(substream, params_buffer_bytes(params));
+		#if SRAM
+			//snd_pcm_lib_malloc_pages(substream, params_buffer_bytes(params));
+		#else
+			snd_pcm_lib_malloc_pages(substream, params_buffer_bytes(params));
+		#endif
 		if (capture_prtd->params == NULL) {
 			capture_prtd->params = &sun7i_codec_pcm_stereo_capture;
 			/*
@@ -944,8 +1183,10 @@ static int sun7i_codec_pcm_hw_params(struct snd_pcm_substream *substream, struct
 				sw_dma_release(capture_prtd->dma_hdl);
 				return -EINVAL;
 			}
+			#if SRAM
 			substream->dma_buffer.addr = 0x00028000;
 			substream->dma_buffer.area = (unsigned char *)0xf0028000;
+			#endif
 			snd_pcm_set_runtime_buffer(substream, &substream->dma_buffer);
 			capture_runtime->dma_bytes = capture_totbytes;
 			spin_lock_irq(&capture_prtd->lock);
@@ -990,7 +1231,12 @@ static int snd_sun7i_codec_hw_free(struct snd_pcm_substream *substream)
 			/*
 			 * Clear out the DMA and any allocated buffers.
 			 */
-			//snd_pcm_lib_free_pages(substream);
+			#if SRAM
+				//snd_pcm_lib_free_pages(substream);
+			#else
+				snd_pcm_lib_free_pages(substream);
+			#endif
+			
 		}
    	} else {
 		capture_prtd = substream->runtime->private_data;
@@ -1014,7 +1260,11 @@ static int snd_sun7i_codec_hw_free(struct snd_pcm_substream *substream)
 			/*
 			 * Clear out the DMA and any allocated buffers.
 			 */
-			//snd_pcm_lib_free_pages(substream);
+			 #if SRAM
+				//snd_pcm_lib_free_pages(substream);
+			 #else
+			 	snd_pcm_lib_free_pages(substream);
+			 #endif
 		}
    	}
 	return 0;
@@ -1252,8 +1502,11 @@ static int snd_sun7i_codec_prepare(struct	snd_pcm_substream	*substream)
    	 	if (!play_prtd->params)
 			return 0;
 
+        if (codec_dacphoneout_en) {
+			codec_dacphoneout_open(substream);
+		} else {
 		codec_play_open(substream);
-   	 	//open the dac channel register
+		}
 		memset(&codec_play_dma_conf, 0, sizeof(codec_play_dma_conf));
 		codec_play_dma_conf.xfer_type.src_data_width 	= DATA_WIDTH_16BIT;
 		codec_play_dma_conf.xfer_type.src_bst_len 		= DATA_BRST_4;
@@ -1261,7 +1514,11 @@ static int snd_sun7i_codec_prepare(struct	snd_pcm_substream	*substream)
 		codec_play_dma_conf.xfer_type.dst_bst_len 		= DATA_BRST_4;
 		codec_play_dma_conf.address_type.src_addr_mode 	= NDMA_ADDR_INCREMENT;
 		codec_play_dma_conf.address_type.dst_addr_mode 	= NDMA_ADDR_NOCHANGE;
-		codec_play_dma_conf.src_drq_type 				= N_SRC_SRAM;
+		#if SRAM
+			codec_play_dma_conf.src_drq_type 				= N_SRC_SRAM;
+		#else
+			codec_play_dma_conf.src_drq_type 				= N_SRC_SDRAM;
+		#endif
 		codec_play_dma_conf.dst_drq_type 				= N_DST_AUDIO_CODEC_DA;
 		codec_play_dma_conf.bconti_mode 				= false;
 		codec_play_dma_conf.irq_spt 					= CHAN_IRQ_FD;
@@ -1281,7 +1538,13 @@ static int snd_sun7i_codec_prepare(struct	snd_pcm_substream	*substream)
    	 	if (!capture_prtd->params)
 			return 0;
 	   	//open the adc channel register
+	   	if (codec_adcphonein_en) {
+	   		codec_adcphonein_open();
+		} else if (codec_voice_record_en ) {
+			codec_voice_main_mic_capture_open();
+		} else {
 	   	codec_capture_open();
+		}
 	   	//set the dma	   	
 	   	memset(&codec_capture_dma_conf, 0, sizeof(codec_capture_dma_conf));
 		codec_capture_dma_conf.xfer_type.src_data_width 	= DATA_WIDTH_16BIT;
@@ -1291,7 +1554,11 @@ static int snd_sun7i_codec_prepare(struct	snd_pcm_substream	*substream)
 		codec_capture_dma_conf.address_type.src_addr_mode 	= NDMA_ADDR_NOCHANGE;
 		codec_capture_dma_conf.address_type.dst_addr_mode 	= NDMA_ADDR_INCREMENT;
 		codec_capture_dma_conf.src_drq_type 				= N_SRC_AUDIO_CODEC_AD;
-		codec_capture_dma_conf.dst_drq_type 				= N_DST_SRAM;
+		#if SRAM
+			codec_capture_dma_conf.dst_drq_type 				= N_DST_SRAM;
+		#else
+			codec_capture_dma_conf.dst_drq_type 				= N_DST_SDRAM;
+		#endif
 		codec_capture_dma_conf.bconti_mode 					= false;
 		codec_capture_dma_conf.irq_spt 						= CHAN_IRQ_FD;
 
@@ -1307,7 +1574,6 @@ static int snd_sun7i_codec_prepare(struct	snd_pcm_substream	*substream)
 	}
 }
 
-volatile static int active = 0;
 static int snd_sun7i_codec_trigger(struct snd_pcm_substream *substream, int cmd)
 {	
 	int play_ret = 0, capture_ret = 0;
@@ -1320,8 +1586,6 @@ static int snd_sun7i_codec_trigger(struct snd_pcm_substream *substream, int cmd)
 			case SNDRV_PCM_TRIGGER_START:
 			case SNDRV_PCM_TRIGGER_RESUME:
 			case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-                active++;
-
 				play_prtd->state |= ST_RUNNING;
 				/*
 				* start dma transfer
@@ -1335,7 +1599,6 @@ static int snd_sun7i_codec_trigger(struct snd_pcm_substream *substream, int cmd)
 				break;
 			case SNDRV_PCM_TRIGGER_SUSPEND:				
 				//codec_play_stop();				
-                active--;
 				break;
 			case SNDRV_PCM_TRIGGER_STOP:			 				
 				play_prtd->state &= ~ST_RUNNING;
@@ -1345,10 +1608,8 @@ static int snd_sun7i_codec_trigger(struct snd_pcm_substream *substream, int cmd)
 				*/
 				if (0 != sw_dma_ctl(play_prtd->dma_hdl, DMA_OP_STOP, NULL)) {
 					printk("%s err, dma stop err\n", __FUNCTION__);
-                    active--;
 					return -EINVAL;
 				}
-                active--;
 				break;
 			case SNDRV_PCM_TRIGGER_PAUSE_PUSH:							
 				play_prtd->state &= ~ST_RUNNING;
@@ -1357,10 +1618,8 @@ static int snd_sun7i_codec_trigger(struct snd_pcm_substream *substream, int cmd)
 				*/
 				if (0 != sw_dma_ctl(play_prtd->dma_hdl, DMA_OP_STOP, NULL)) {
 					printk("%s err, dma stop err\n", __FUNCTION__);
-                    active--;
 					return -EINVAL;
 				}
-                active--;
 				break;
 			default:
 				printk("error:%s,%d\n", __func__, __LINE__);
@@ -1475,7 +1734,9 @@ static int snd_sun7icard_playback_close(struct snd_pcm_substream *substream)
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	codec_play_stop();
 	//pa mute
-	codec_wr_control(SUN7I_DAC_ACTL, 0x1, PA_MUTE, 0x0);
+	if ( !( codec_dacphoneout_en  || codec_voice_record_en ) ) {
+		codec_wr_control(SUN7I_DAC_ACTL, 0x1, PA_MUTE, 0x0);			
+	}
 	msleep(5);
 	//disable dac drq
 	codec_wr_control(SUN7I_DAC_FIFOC ,0x1, DAC_DRQ, 0x0);
@@ -1527,10 +1788,15 @@ static int snd_card_sun7i_codec_pcm(struct sun7i_codec *sun7i_codec, int device)
 	 * isa works but I'm not sure why (or if) it's the right choice
 	 * this may be too large, trying it for now
 	 */
-	//snd_pcm_lib_preallocate_pages_for_all(pcm, SNDRV_DMA_TYPE_DEV, 
+	#if SRAM
+		//snd_pcm_lib_preallocate_pages_for_all(pcm, SNDRV_DMA_TYPE_DEV, 
 					     // snd_dma_isa_data(),
 					    //  32*1024, 32*1024);
-
+	#else 
+		snd_pcm_lib_preallocate_pages_for_all(pcm, SNDRV_DMA_TYPE_DEV, 
+					      snd_dma_isa_data(),
+					      32*1024, 32*1024);
+	#endif
 	snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK, &sun7i_pcm_playback_ops);
 	if (capture_used) {
 		snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, &sun7i_pcm_capture_ops);
