@@ -363,7 +363,7 @@ static void btusb_bulk_complete(struct urb *urb)
 	/*
 	RTKBT_DBG("%s urb %p status %d count %d", hdev->name,
 					urb, urb->status, urb->actual_length);
-    */
+	 */
 
 	if (!test_bit(HCI_RUNNING, &hdev->flags))
 		return;
@@ -458,7 +458,7 @@ static void btusb_isoc_complete(struct urb *urb)
 	/*
 	RTKBT_DBG("%s urb %p status %d count %d", hdev->name,
 					urb, urb->status, urb->actual_length);
-    */
+	 */
 	if (!test_bit(HCI_RUNNING, &hdev->flags))
 		return;
 
@@ -608,7 +608,7 @@ static void btusb_isoc_tx_complete(struct urb *urb)
 	/*
 	RTKBT_DBG("btusb_isoc_tx_complete %s urb %p status %d count %d", hdev->name,
 					urb, urb->status, urb->actual_length);
-    */
+	 */
 	if (!test_bit(HCI_RUNNING, &hdev->flags))
 		goto done;
 
@@ -750,19 +750,20 @@ static int btusb_flush(struct hci_dev *hdev)
 	return 0;
 }
 
-#if LINUX_VERSION_CODE >=KERNEL_VERSION(3, 13, 0)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0))
 static int btusb_send_frame(struct hci_dev *hdev, struct sk_buff *skb)
 {
 #else
 static int btusb_send_frame(struct sk_buff *skb)
 {
-	struct hci_dev *hdev = (struct hci_dev *) skb->dev;
+	struct hci_dev *hdev = (struct hci_dev *)skb->dev;
 #endif
 
 	struct btusb_data *data = GET_DRV_DATA(hdev);
 	struct usb_ctrlrequest *dr;
 	struct urb *urb;
 	unsigned int pipe;
+	unsigned char *aligned_data;
 	int err;
 
 //	RTKBT_DBG("%s", hdev->name);
@@ -770,22 +771,35 @@ static int btusb_send_frame(struct sk_buff *skb)
 	if (!test_bit(HCI_RUNNING, &hdev->flags))
 		return -EBUSY;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0)
-#else
-skb->dev = (void *) hdev;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0))
+	skb->dev = (void *) hdev;
 #endif
+
+	if (!test_bit(HCI_RUNNING, &hdev->flags))
+		return -EBUSY;
+
+	/* Some platforms such as ARM require dword alignment for the skb->data
+	 * To ensure that, allocate a buffer and copy the data
+	 */
+	aligned_data = kmalloc(max_t(unsigned int, 256, skb->len), GFP_ATOMIC);
+	if (!aligned_data)
+		return -ENOMEM;
+	memcpy(aligned_data, skb->data, skb->len);
 
 	switch (bt_cb(skb)->pkt_type) {
 	case HCI_COMMAND_PKT:
 		print_command(skb);
 		urb = usb_alloc_urb(0, GFP_ATOMIC);
-		if (!urb)
-			return -ENOMEM;
+		if (!urb) {
+			err = -ENOMEM;
+			goto done;
+		}
 
 		dr = kmalloc(sizeof(*dr), GFP_ATOMIC);
 		if (!dr) {
 			usb_free_urb(urb);
-			return -ENOMEM;
+			err = -ENOMEM;
+			goto done;
 		}
 
 		dr->bRequestType = data->cmdreq_type;
@@ -797,43 +811,51 @@ skb->dev = (void *) hdev;
 		pipe = usb_sndctrlpipe(data->udev, 0x00);
 
 		usb_fill_control_urb(urb, data->udev, pipe, (void *) dr,
-				skb->data, skb->len, btusb_tx_complete, skb);
+		                     aligned_data, skb->len, btusb_tx_complete, skb);
 
 		hdev->stat.cmd_tx++;
 		break;
 
 	case HCI_ACLDATA_PKT:
 		print_acl(skb,1);
-		if (!data->bulk_tx_ep)
-			return -ENODEV;
+		if (!data->bulk_tx_ep) {
+			err = -ENODEV;
+			goto done;
+		}
 
 		urb = usb_alloc_urb(0, GFP_ATOMIC);
-		if (!urb)
-			return -ENOMEM;
+		if (!urb) {
+			err = -ENOMEM;
+			goto done;
+		}
 
 		pipe = usb_sndbulkpipe(data->udev,
 					data->bulk_tx_ep->bEndpointAddress);
 
 		usb_fill_bulk_urb(urb, data->udev, pipe,
-				skb->data, skb->len, btusb_tx_complete, skb);
+		                  aligned_data, skb->len, btusb_tx_complete, skb);
 
 		hdev->stat.acl_tx++;
 		break;
 
 	case HCI_SCODATA_PKT:
-		if (!data->isoc_tx_ep ||SCO_NUM< 1)
-			return -ENODEV;
+		if (!data->isoc_tx_ep || SCO_NUM < 1) {
+			err = -ENODEV;
+			goto done;
+		}
 
 		urb = usb_alloc_urb(BTUSB_MAX_ISOC_FRAMES, GFP_ATOMIC);
-		if (!urb)
-			return -ENOMEM;
+		if (!urb) {
+			err = -ENOMEM;
+			goto done;
+		}
 
 		pipe = usb_sndisocpipe(data->udev,
 					data->isoc_tx_ep->bEndpointAddress);
 
 		usb_fill_int_urb(urb, data->udev, pipe,
-				skb->data, skb->len, btusb_isoc_tx_complete,
-				skb, data->isoc_tx_ep->bInterval);
+		                 aligned_data, skb->len, btusb_isoc_tx_complete,
+		                 skb, data->isoc_tx_ep->bInterval);
 
 		urb->transfer_flags  = URB_ISO_ASAP;
 
@@ -844,7 +866,8 @@ skb->dev = (void *) hdev;
 		goto skip_waking;
 
 	default:
-		return -EILSEQ;
+		err = -EILSEQ;
+		goto done;
 	}
 
 	err = inc_tx(data);
@@ -868,6 +891,7 @@ skip_waking:
 	usb_free_urb(urb);
 
 done:
+	kfree(aligned_data);
 	return err;
 }
 
@@ -1408,7 +1432,7 @@ enum rtk_endpoit {
 typedef struct {
 	uint16_t	prod_id;
 	uint16_t	lmp_sub;
-        char          *mp_patch_name;
+	char		*mp_patch_name;
 	char		*patch_name;
 	char		*config_name;
 	uint8_t		*fw_cache;
@@ -1588,7 +1612,7 @@ int download_patch(struct usb_interface* intf)
 		goto patch_end;
 	}
 
-        xdata = kzalloc(sizeof(xchange_data), GFP_KERNEL);
+	xdata = kzalloc(sizeof(xchange_data), GFP_KERNEL);
 	if(NULL == xdata)
 	{
 		ret_val = -1;
